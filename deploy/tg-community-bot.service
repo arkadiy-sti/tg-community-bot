@@ -1,0 +1,26 @@
+[Unit]
+Description=tg-community-bot (prod) — Co-Workers Bay Area
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/tg-community-bot
+Environment=ENV_FILE=/opt/tg-community-bot/.env.prod
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/tg-community-bot/.venv/bin/python -m bot.main
+Restart=always
+RestartSec=5
+
+# Безопасность: запрещаем писать вне нужных директорий
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/tg-community-bot/data /opt/tg-community-bot/logs /tmp
+
+# Лимиты
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
