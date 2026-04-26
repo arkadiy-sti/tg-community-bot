@@ -14,8 +14,16 @@ router = Router(name="common")
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
     if message.chat.type == "private":
+        name = (
+            message.from_user.first_name
+            if message.from_user and message.from_user.first_name
+            else "друг"
+        )
         await message.answer(
-            texts.START_PRIVATE.format(community=texts.COMMUNITY_NAME)
+            texts.START_PRIVATE.format(
+                community=texts.COMMUNITY_NAME,
+                name=name,
+            )
         )
 
 
