@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
-from typing import List
+from typing import Annotated, List
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -23,7 +23,11 @@ class Settings(BaseSettings):
 
     # --- Telegram ---
     bot_token: str = Field(..., alias="BOT_TOKEN")
-    admin_ids: List[int] = Field(default_factory=list, alias="ADMIN_IDS")
+    # NoDecode — отключаем авто-JSON-парсинг pydantic-settings (иначе "125293998"
+    # парсится как int и наш валидатор не успевает поймать).
+    admin_ids: Annotated[List[int], NoDecode] = Field(
+        default_factory=list, alias="ADMIN_IDS"
+    )
     main_chat_id: int | None = Field(default=None, alias="MAIN_CHAT_ID")
     channel_id: int | None = Field(default=None, alias="CHANNEL_ID")
 
