@@ -51,10 +51,14 @@ class Settings(BaseSettings):
     @field_validator("admin_ids", mode="before")
     @classmethod
     def _parse_admin_ids(cls, v):
+        # pydantic-settings парсит ENV как JSON, поэтому "125293998" может прийти int.
+        # Поддерживаем: пусто, list, "1,2,3" CSV, одиночное число.
         if v is None or v == "":
             return []
         if isinstance(v, list):
             return [int(x) for x in v]
+        if isinstance(v, int):
+            return [v]
         if isinstance(v, str):
             return [int(x.strip()) for x in v.split(",") if x.strip()]
         return v

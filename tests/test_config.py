@@ -26,3 +26,11 @@ def test_main_chat_optional(monkeypatch) -> None:
     monkeypatch.delenv("MAIN_CHAT_ID", raising=False)
     s = Settings()  # type: ignore[call-arg]
     assert s.main_chat_id is None
+
+
+def test_admin_ids_single_number(monkeypatch) -> None:
+    """ADMIN_IDS=125293998 без запятой — pydantic-settings отдаёт int, валидатор оборачивает в [int]."""
+    monkeypatch.setenv("BOT_TOKEN", "x:y")
+    monkeypatch.setenv("ADMIN_IDS", "125293998")
+    s = Settings()  # type: ignore[call-arg]
+    assert s.admin_ids == [125293998]
