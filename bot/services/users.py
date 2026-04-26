@@ -110,6 +110,38 @@ async def get_stats(session: AsyncSession) -> dict:
     }
 
 
+async def set_language(session: AsyncSession, tg_id: int, lang: str) -> None:
+    """Сохранить язык интерфейса пользователя."""
+    await session.execute(
+        update(User).where(User.tg_id == tg_id).values(language=lang)
+    )
+    await session.commit()
+
+
+async def save_registration(
+    session: AsyncSession,
+    tg_id: int,
+    *,
+    role: str,
+    display_name: str,
+    area: str | None,
+    phone: str | None,
+    bio: str | None,
+) -> User | None:
+    """Записать поля регистрации в существующего пользователя."""
+    user = await get_user(session, tg_id)
+    if user is None:
+        return None
+    user.role = role
+    user.display_name = display_name
+    user.area = area
+    user.phone = phone
+    user.bio = bio
+    user.registered_at = datetime.now(timezone.utc)
+    await session.commit()
+    return user
+
+
 async def list_users_for_broadcast(
     session: AsyncSession, segment: str = "all"
 ) -> list[int]:

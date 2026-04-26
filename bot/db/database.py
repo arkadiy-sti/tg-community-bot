@@ -26,7 +26,7 @@ def _ensure_sqlite_dir(db_url: str) -> None:
 
 
 async def init_db(db_url: str) -> None:
-    """Инициализация движка и создание таблиц."""
+    """Инициализация движка, create_all для новых таблиц, idempotent миграции."""
     global _engine, _session_factory
     _ensure_sqlite_dir(db_url)
     _engine = create_async_engine(db_url, echo=False, future=True)
@@ -37,6 +37,16 @@ async def init_db(db_url: str) -> None:
 
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # ALTER TABLE для расширения существующих таблиц (users в проде)
+    from bot.db.migrations import run_migrations
+
+    await run_migrations(_engine)
+
+    # Idempotent заливка справочника тегов
+    from bot.db.seed_tags import seed_tags
+
+    await seed_tags(_engine)
 
 
 @asynccontextmanager
