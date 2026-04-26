@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
-from typing import Annotated, List
+from typing import List
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -23,11 +23,9 @@ class Settings(BaseSettings):
 
     # --- Telegram ---
     bot_token: str = Field(..., alias="BOT_TOKEN")
-    # NoDecode — отключаем авто-JSON-парсинг pydantic-settings (иначе "125293998"
-    # парсится как int и наш валидатор не успевает поймать).
-    admin_ids: Annotated[List[int], NoDecode] = Field(
-        default_factory=list, alias="ADMIN_IDS"
-    )
+    # Сырая строка: "1,2,3" или "1" — pydantic-settings не пытается JSON-парсить.
+    # Список int отдаётся через property admin_ids ниже.
+    admin_ids_raw: str = Field(default="", alias="ADMIN_IDS")
     main_chat_id: int | None = Field(default=None, alias="MAIN_CHAT_ID")
     channel_id: int | None = Field(default=None, alias="CHANNEL_ID")
 
@@ -52,27 +50,29 @@ class Settings(BaseSettings):
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
-    @field_validator("admin_ids", mode="before")
-    @classmethod
-    def _parse_admin_ids(cls, v):
-        # pydantic-settings парсит ENV как JSON, поэтому "125293998" может прийти int.
-        # Поддерживаем: пусто, list, "1,2,3" CSV, одиночное число.
-        if v is None or v == "":
-            return []
-        if isinstance(v, list):
-            return [int(x) for x in v]
-        if isinstance(v, int):
-            return [v]
-        if isinstance(v, str):
-            return [int(x.strip()) for x in v.split(",") if x.strip()]
-        return v
-
     @field_validator("main_chat_id", "channel_id", mode="before")
     @classmethod
     def _parse_chat(cls, v):
         if v is None or v == "":
             return None
         return int(v)
+
+    @property
+    def admin_ids(self) -> List[int]:
+        """ID админов из ENV (CSV или одно число). Возвращает [] если пусто."""
+        raw = (self.admin_ids_raw or "").strip()
+        if not raw:
+            return []
+        result: List[int] = []
+        for chunk in raw.split(","):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            try:
+                result.append(int(chunk))
+            except ValueError:
+                continue
+        return result
 
     @property
     def is_dev(self) -> bool:
