@@ -26,6 +26,7 @@ set -euo pipefail
 REPO_URL="${REPO_URL:-https://github.com/arkadiy-sti/tg-community-bot.git}"
 APP_DIR="/opt/tg-community-bot"
 DATA_DIR="$APP_DIR/data"
+LOGS_DIR="$APP_DIR/logs"
 BACKUP_DIR="/root/tg-bot-backups"
 PY="python3.11"
 
@@ -71,7 +72,7 @@ else
   git -C "$APP_DIR" pull --ff-only
 fi
 
-mkdir -p "$DATA_DIR" "$BACKUP_DIR"
+mkdir -p "$DATA_DIR" "$LOGS_DIR" "$BACKUP_DIR"
 
 # 3. Виртуальное окружение
 if [[ ! -d "$APP_DIR/.venv" ]]; then
