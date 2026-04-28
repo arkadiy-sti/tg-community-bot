@@ -19,7 +19,14 @@ from aiogram.types import (
 from bot.db.database import get_session
 from bot.i18n import normalize_lang, t
 from bot.services import phones as phones_svc
+from bot.services import tags as tags_svc
 from bot.services import users
+from bot.services.tags import (
+    CUSTOM_TAG_LIMIT_PER_USER,
+    USER_TAGS_LIMIT,
+    list_tags_by_category,
+    normalize_custom_tag,
+)
 
 log = logging.getLogger(__name__)
 router = Router(name="edit")
@@ -39,6 +46,9 @@ class EditStates(StatesGroup):
     contact_type = State()
     contact_value = State()
     license = State()
+    tags_primary = State()
+    tags_secondary = State()
+    tags_custom_input = State()
 
 
 class DeleteStates(StatesGroup):
@@ -66,15 +76,62 @@ def _kb_edit_menu(lang: str) -> InlineKeyboardMarkup:
                                      callback_data="edit:f:contact"),
             ],
             [
+                InlineKeyboardButton(text=t(lang, "edit_field_tags"),
+                                     callback_data="edit:f:tags"),
                 InlineKeyboardButton(text=t(lang, "edit_field_license"),
                                      callback_data="edit:f:license"),
+            ],
+            [
                 InlineKeyboardButton(text=t(lang, "edit_field_lang"),
                                      callback_data="edit:f:lang"),
+                InlineKeyboardButton(text=t(lang, "edit_cancel"),
+                                     callback_data="edit:cancel"),
             ],
-            [InlineKeyboardButton(text=t(lang, "edit_cancel"),
-                                  callback_data="edit:cancel")],
         ]
     )
+
+
+def _kb_tag_grid(
+    tag_list,
+    lang: str,
+    *,
+    selected: set[int] | None = None,
+    show_done: bool = False,
+    show_custom: bool = False,
+) -> InlineKeyboardMarkup:
+    """Сетка тегов 3 в ряд для /edit (зеркалит register._kb_tag_grid)."""
+    selected = selected or set()
+    rows: list[list[InlineKeyboardButton]] = []
+    line: list[InlineKeyboardButton] = []
+    for tag in tag_list:
+        label = tag.label_ru if lang == "ru" else tag.label_en
+        prefix = "☑ " if tag.id in selected else ""
+        line.append(InlineKeyboardButton(
+            text=f"{prefix}{label}",
+            callback_data=f"edit:t:{tag.id}",
+        ))
+        if len(line) == 3:
+            rows.append(line)
+            line = []
+    if line:
+        rows.append(line)
+    bottom: list[InlineKeyboardButton] = []
+    if show_custom:
+        bottom.append(InlineKeyboardButton(
+            text="✏️ Свой вариант" if lang == "ru" else "✏️ Custom",
+            callback_data="edit:t:custom",
+        ))
+    if show_done:
+        done_label = (
+            f"✅ Готово ({len(selected)})"
+            if lang == "ru" else f"✅ Done ({len(selected)})"
+        )
+        bottom.append(InlineKeyboardButton(
+            text=done_label, callback_data="edit:t:done"
+        ))
+    if bottom:
+        rows.append(bottom)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def _kb_contact_type(lang: str) -> InlineKeyboardMarkup:
@@ -152,6 +209,36 @@ async def cb_edit_field(callback: CallbackQuery, state: FSMContext) -> None:
         await state.set_state(EditStates.license)
         if callback.message:
             await callback.message.edit_text(t(lang, "register_ask_license_number"))
+    elif field == "tags":
+        if callback.from_user:
+            async with get_session() as session:
+                me = await users.get_user(session, callback.from_user.id)
+                if me is None:
+                    await callback.answer()
+                    return
+                # Текущие теги — pre-select
+                cur = await tags_svc.get_user_tags(session, me.id)
+                primary_id = next(
+                    (ut.tag_id for ut in cur if ut.is_primary), None
+                )
+                secondary_ids = [
+                    ut.tag_id for ut in cur if not ut.is_primary
+                ]
+                skill_tags = await list_tags_by_category(session, "skill")
+            await state.update_data(
+                primary_tag_id=primary_id,
+                secondary_tag_ids=secondary_ids,
+            )
+            await state.set_state(EditStates.tags_primary)
+            if callback.message:
+                await callback.message.edit_text(
+                    t(lang, "register_ask_primary_tag"),
+                    reply_markup=_kb_tag_grid(
+                        skill_tags, lang,
+                        selected={primary_id} if primary_id else set(),
+                        show_done=False, show_custom=False,
+                    ),
+                )
     elif field == "lang":
         # Просто переключаем
         new_lang = "en" if lang == "ru" else "ru"
@@ -290,6 +377,179 @@ async def edit_license(message: Message, state: FSMContext) -> None:
         )
     await state.clear()
     await message.answer(t(lang, "edit_done"))
+
+
+# ---------------------------------------------------------------------------
+# /edit → теги (multi-select c pre-select текущих)
+# ---------------------------------------------------------------------------
+
+
+async def _send_secondary_tags_step(
+    target_message: Message,
+    state: FSMContext,
+    lang: str,
+    *,
+    edit: bool = False,
+) -> None:
+    data = await state.get_data()
+    primary_id: int | None = data.get("primary_tag_id")
+    selected: set[int] = set(data.get("secondary_tag_ids", []))
+    async with get_session() as session:
+        skill_tags = await list_tags_by_category(session, "skill")
+    visible = [tg for tg in skill_tags if tg.id != primary_id]
+    text = t(
+        lang,
+        "register_ask_more_tags",
+        limit=USER_TAGS_LIMIT,
+        selected=len(selected),
+        max=USER_TAGS_LIMIT - 1,
+    )
+    kb = _kb_tag_grid(
+        visible, lang, selected=selected, show_done=True, show_custom=True
+    )
+    await state.set_state(EditStates.tags_secondary)
+    if edit and target_message:
+        try:
+            await target_message.edit_text(text, reply_markup=kb)
+            return
+        except Exception:
+            pass
+    await target_message.answer(text, reply_markup=kb)
+
+
+@router.callback_query(EditStates.tags_primary, F.data.startswith("edit:t:"))
+async def cb_edit_primary_tag(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None:
+        return
+    payload = callback.data.split(":", 2)[2]
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    if payload in ("done", "custom"):
+        await callback.answer()
+        return
+    try:
+        tag_id = int(payload)
+    except ValueError:
+        await callback.answer()
+        return
+    async with get_session() as session:
+        tag = await tags_svc.get_tag(session, tag_id)
+    if tag is None:
+        await callback.answer("?")
+        return
+    # При смене primary очищаем secondary (как в register)
+    await state.update_data(primary_tag_id=tag_id, secondary_tag_ids=[])
+    if callback.message:
+        await _send_secondary_tags_step(callback.message, state, lang, edit=True)
+    await callback.answer()
+
+
+@router.callback_query(EditStates.tags_secondary, F.data.startswith("edit:t:"))
+async def cb_edit_secondary_tag(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None or callback.from_user is None:
+        return
+    payload = callback.data.split(":", 2)[2]
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    selected: list[int] = list(data.get("secondary_tag_ids", []))
+
+    if payload == "done":
+        # Сохраняем
+        primary_id = data.get("primary_tag_id")
+        async with get_session() as session:
+            me = await users.get_user(session, callback.from_user.id)
+            if me is None:
+                await state.clear()
+                await callback.answer()
+                return
+            await tags_svc.replace_user_tags(
+                session,
+                user_id=me.id,
+                primary_tag_id=primary_id,
+                secondary_tag_ids=selected,
+            )
+        await state.clear()
+        if callback.message:
+            await callback.message.edit_text(t(lang, "edit_done"))
+        log.info("Edited tags for tg_id=%s", callback.from_user.id)
+        await callback.answer()
+        return
+
+    if payload == "custom":
+        async with get_session() as session:
+            me = await users.get_user(session, callback.from_user.id)
+            used = (
+                await tags_svc.count_custom_tags_by_user(session, me.id)
+                if me else 0
+            )
+        if used >= CUSTOM_TAG_LIMIT_PER_USER:
+            await callback.answer(
+                t(lang, "register_custom_tag_limit", limit=CUSTOM_TAG_LIMIT_PER_USER),
+                show_alert=True,
+            )
+            return
+        await state.set_state(EditStates.tags_custom_input)
+        if callback.message:
+            await callback.message.answer(t(lang, "register_ask_custom_tag"))
+        await callback.answer()
+        return
+
+    try:
+        tag_id = int(payload)
+    except ValueError:
+        await callback.answer()
+        return
+
+    selected_set = set(selected)
+    if tag_id in selected_set:
+        selected_set.remove(tag_id)
+    else:
+        if len(selected_set) + 1 >= USER_TAGS_LIMIT:
+            await callback.answer(
+                t(lang, "register_tag_limit_reached", limit=USER_TAGS_LIMIT),
+                show_alert=False,
+            )
+            return
+        selected_set.add(tag_id)
+    await state.update_data(secondary_tag_ids=list(selected_set))
+    if callback.message:
+        await _send_secondary_tags_step(callback.message, state, lang, edit=True)
+    await callback.answer()
+
+
+@router.message(EditStates.tags_custom_input)
+async def edit_custom_tag(message: Message, state: FSMContext) -> None:
+    if not message.text or message.from_user is None:
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    label = normalize_custom_tag(message.text)
+    if label is None:
+        await message.answer(t(lang, "register_custom_tag_invalid"))
+        return
+    async with get_session() as session:
+        me = await users.get_user(session, message.from_user.id)
+        if me is None:
+            await message.answer(t(lang, "edit_not_registered"))
+            await state.clear()
+            return
+        tag = await tags_svc.create_custom_tag(
+            session,
+            raw_label=label,
+            category="skill",
+            created_by_user_id=me.id,
+        )
+    if tag is None:
+        await message.answer(
+            t(lang, "register_custom_tag_limit", limit=CUSTOM_TAG_LIMIT_PER_USER)
+        )
+        await _send_secondary_tags_step(message, state, lang)
+        return
+    selected = list(data.get("secondary_tag_ids", []))
+    if tag.id not in selected and len(selected) + 1 < USER_TAGS_LIMIT:
+        selected.append(tag.id)
+    await state.update_data(secondary_tag_ids=selected)
+    await _send_secondary_tags_step(message, state, lang)
 
 
 # ---------------------------------------------------------------------------

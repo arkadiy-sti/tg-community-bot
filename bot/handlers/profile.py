@@ -98,6 +98,16 @@ async def _build_card(session, user: User, lang: str) -> str:
         t(lang, "profile_licensed_badge") if user.is_licensed_contractor else ""
     )
 
+    # Приоритетный способ связи — только тип, не значение (приватность)
+    if user.contact_phone:
+        contact_pref = t(lang, "profile_contact_phone")
+    elif user.contact_whatsapp:
+        contact_pref = t(lang, "profile_contact_whatsapp")
+    elif user.contact_email:
+        contact_pref = t(lang, "profile_contact_email")
+    else:
+        contact_pref = t(lang, "profile_contact_none")
+
     return t(
         lang,
         "profile_card",
@@ -107,6 +117,7 @@ async def _build_card(session, user: User, lang: str) -> str:
         area=user.area or "—",
         primary_tag=primary_label,
         tags=secondary_str,
+        contact_pref=contact_pref,
         bio=(user.bio or ""),
         rating=rating_str,
         deals=deals_count or 0,
@@ -130,15 +141,32 @@ async def cmd_profile(message: Message) -> None:
     await message.answer(text)
 
 
+def _can_view_profiles(user: User | None) -> bool:
+    """True если user имеет полный профиль (coworker / legacy)."""
+    if user is None or not user.role:
+        return False
+    # Гости — нет; coworker и legacy роли (handyman/individual/company) — да
+    return user.role != "guest"
+
+
 @router.message(Command("check"))
 async def cmd_check(message: Message, command: CommandObject) -> None:
-    """/check @username — карточка пользователя по username."""
+    """/check @username — карточка пользователя по username.
+
+    Доступ: только зарегистрированным Coworker-ам (и legacy ролям).
+    Гости и нерегистрированные видят сообщение с предложением /register.
+    """
     if message.chat.type != "private" or message.from_user is None:
         return
 
     async with get_session() as session:
         me = await users.get_user(session, message.from_user.id)
         my_lang = normalize_lang(me.language if me else None)
+
+        # Gate: только Coworker-ы могут смотреть карточки других
+        if not _can_view_profiles(me):
+            await message.answer(t(my_lang, "check_only_coworkers"))
+            return
 
         arg = (command.args or "").strip().lstrip("@").lower()
         if not arg:

@@ -207,12 +207,23 @@ TEXTS: dict[str, dict[str, str]] = {
             "Район: {area}\n"
             "Основной навык: {primary_tag}\n"
             "Доп. навыки: {tags}\n"
+            "Приоритетный способ связи: {contact_pref}\n"
             "{bio}\n\n"
             "⭐ Рейтинг: {rating} ({deals} сделок)\n"
             "💬 Что говорят: {cloud}\n"
             "{subscription}"
         ),
         "profile_licensed_badge": " ✅ Verified contractor",
+        "profile_contact_phone": "📱 Телефон (SMS)",
+        "profile_contact_whatsapp": "💬 WhatsApp",
+        "profile_contact_email": "✉️ Email",
+        "profile_contact_none": "только Telegram",
+        "check_only_coworkers": (
+            "🔒 Просмотр профилей участников — только для зарегистрированных Coworker-ов.\n\n"
+            "Сначала зарегистрируйся как Coworker: /register\n"
+            "После этого ты сможешь смотреть карточки других участников и "
+            "получать предложения о подходящих проектах."
+        ),
         "profile_no_subscription": "Подписки нет — действуют только базовые функции.",
         "profile_subscription_active": "🟢 Подписка активна до {until}.",
         "profile_not_registered": "Ты ещё не зарегистрирован. Команда: /register",
@@ -491,12 +502,23 @@ TEXTS: dict[str, dict[str, str]] = {
             "Area: {area}\n"
             "Main skill: {primary_tag}\n"
             "Other skills: {tags}\n"
+            "Preferred contact: {contact_pref}\n"
             "{bio}\n\n"
             "⭐ Rating: {rating} ({deals} deals)\n"
             "💬 Reviews say: {cloud}\n"
             "{subscription}"
         ),
         "profile_licensed_badge": " ✅ Verified contractor",
+        "profile_contact_phone": "📱 Phone (SMS)",
+        "profile_contact_whatsapp": "💬 WhatsApp",
+        "profile_contact_email": "✉️ Email",
+        "profile_contact_none": "Telegram only",
+        "check_only_coworkers": (
+            "🔒 Viewing member profiles is for registered Coworkers only.\n\n"
+            "Register as a Coworker first: /register\n"
+            "After that you'll be able to view other members' cards and "
+            "receive offers for matching projects."
+        ),
         "profile_no_subscription": "No subscription — basic features only.",
         "profile_subscription_active": "🟢 Subscription active until {until}.",
         "profile_not_registered": "You haven't registered yet. Use /register",
