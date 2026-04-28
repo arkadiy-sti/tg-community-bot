@@ -10,6 +10,10 @@ from typing import Literal
 Lang = Literal["ru", "en"]
 DEFAULT_LANG: Lang = "ru"
 
+# Инвайт-ссылка на группу — выводится в welcome-сообщениях.
+# При смене группы — менять здесь, везде подтянется.
+COMMUNITY_INVITE_URL = "https://t.me/+pJqeSGuX005kNThi"
+
 # ---------------------------------------------------------------------------
 # Словари. Структура: TEXTS[lang][key] = template (.format-friendly).
 # ---------------------------------------------------------------------------
@@ -25,9 +29,12 @@ TEXTS: dict[str, dict[str, str]] = {
             "Это бот сообщества <b>{community}</b> — площадка для русскоязычных "
             "хэндименов и заказчиков в Bay Area.\n\n"
             "Что ты можешь:\n"
-            "• Зарегистрироваться как исполнитель, заказчик или компания\n"
+            "• Зарегистрироваться как <b>Coworker</b> — профиль с тегами, "
+            "рейтингом и уведомлениями о подходящих проектах\n"
+            "• Или зайти как <b>Гость</b> — просто читать группу\n"
             "• Размещать и находить работу\n"
             "• Оставлять и читать отзывы\n\n"
+            "👥 Группа: <a href=\"{invite}\">Co-Workers Bay Area</a>\n\n"
             "Команды:\n"
             "/register — регистрация\n"
             "/profile — мой профиль\n"
@@ -79,8 +86,14 @@ TEXTS: dict[str, dict[str, str]] = {
         "role_individual": "🏠 Заказчик (физлицо)",      # legacy
         "role_company": "🏢 Компания-заказчик",          # legacy
         "register_guest_done": (
-            "Окей! Ты в группе как гость.\n"
-            "Когда захочешь профиль — напиши /register снова."
+            "👀 <b>Добро пожаловать в Co-Workers Bay Area!</b>\n\n"
+            "Ты в группе как гость — можешь читать чат, общаться, "
+            "наблюдать за проектами. Профиль не создан, поэтому "
+            "тебя не видно в директории и нет уведомлений о работе.\n\n"
+            "👥 Заходи в группу: <a href=\"{invite}\">Co-Workers Bay Area</a>\n\n"
+            "Когда захочешь стать активным участником и получать "
+            "предложения о проектах — напиши /register снова и выбери "
+            "<b>Coworker</b>."
         ),
         "register_ask_name": "Как тебя зовут? (имя или название компании)",
         "register_ask_area": "В каких районах Bay Area работаешь? (например: SF, Oakland, San Jose)",
@@ -162,12 +175,18 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "register_canceled": "Регистрация отменена. Можно начать снова через /register.",
         "register_done": (
-            "✅ Готово! Профиль сохранён.\n\n"
-            "Команды:\n"
-            "/profile — мой профиль\n"
-            "/edit — изменить профиль\n"
-            "/post — разместить объявление\n"
-            "/delete_me — удалить профиль и все данные"
+            "🎉 <b>Добро пожаловать в Co-Workers Bay Area!</b>\n\n"
+            "Профиль создан. Теперь ты в комьюнити русскоязычных "
+            "хэндименов и заказчиков Bay Area.\n\n"
+            "👥 Заходи в группу: <a href=\"{invite}\">Co-Workers Bay Area</a>\n"
+            "Там обсуждаем проекты, делимся опытом, ищем подрядчиков "
+            "и заказчиков.\n\n"
+            "Что дальше:\n"
+            "• /profile — посмотреть свою карточку\n"
+            "• /edit — поправить профиль\n"
+            "• /post — разместить объявление о работе\n"
+            "• /check @username — карточка другого участника\n\n"
+            "Удачи в проектах! 🛠"
         ),
         "register_already_registered": (
             "У тебя уже есть профиль. Если хочешь перезаписать — нажми «Перезаписать».\n"
@@ -330,9 +349,12 @@ TEXTS: dict[str, dict[str, str]] = {
             "This is the bot for the <b>{community}</b> community — a marketplace "
             "for Russian-speaking handymen and clients in the Bay Area.\n\n"
             "What you can do:\n"
-            "• Register as a contractor, individual client, or company\n"
+            "• Register as a <b>Coworker</b> — profile with tags, rating, "
+            "and project notifications\n"
+            "• Or join as a <b>Guest</b> — just read the group\n"
             "• Post and find jobs\n"
             "• Leave and read reviews\n\n"
+            "👥 Group: <a href=\"{invite}\">Co-Workers Bay Area</a>\n\n"
             "Commands:\n"
             "/register — register\n"
             "/profile — my profile\n"
@@ -380,8 +402,13 @@ TEXTS: dict[str, dict[str, str]] = {
         "role_individual": "🏠 Individual client",
         "role_company": "🏢 Company client",
         "register_guest_done": (
-            "Got it! You're in as a guest.\n"
-            "When you want a profile — run /register again."
+            "👀 <b>Welcome to Co-Workers Bay Area!</b>\n\n"
+            "You're in as a guest — you can read the chat, post, and "
+            "follow projects. No profile is created, so you're not in "
+            "the directory and won't receive project alerts.\n\n"
+            "👥 Join the group: <a href=\"{invite}\">Co-Workers Bay Area</a>\n\n"
+            "When you want to become an active member and receive "
+            "project offers — type /register again and pick <b>Coworker</b>."
         ),
         "register_ask_name": "What's your name? (your name or company name)",
         "register_ask_area": "Which Bay Area locations? (e.g. SF, Oakland, San Jose)",
@@ -459,12 +486,18 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "register_canceled": "Registration canceled. Run /register again to retry.",
         "register_done": (
-            "✅ Done! Profile saved.\n\n"
-            "Commands:\n"
-            "/profile — my profile\n"
-            "/edit — edit profile\n"
-            "/post — post a listing\n"
-            "/delete_me — delete profile and all data"
+            "🎉 <b>Welcome to Co-Workers Bay Area!</b>\n\n"
+            "Your profile is set up. You're now in the community of "
+            "Russian-speaking handymen and clients in the Bay Area.\n\n"
+            "👥 Join the group: <a href=\"{invite}\">Co-Workers Bay Area</a>\n"
+            "We discuss projects, share experience, find contractors "
+            "and clients there.\n\n"
+            "What's next:\n"
+            "• /profile — view your card\n"
+            "• /edit — update profile\n"
+            "• /post — post a job listing\n"
+            "• /check @username — view another member's card\n\n"
+            "Good luck on your projects! 🛠"
         ),
         "register_already_registered": (
             "You already have a profile. Tap «Overwrite» to start over.\n"

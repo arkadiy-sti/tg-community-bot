@@ -20,7 +20,7 @@ from aiogram.types import (
 )
 
 from bot.db.database import get_session
-from bot.i18n import normalize_lang, t
+from bot.i18n import COMMUNITY_INVITE_URL, normalize_lang, t
 from bot.services import phones as phones_svc
 from bot.services import tags as tags_svc
 from bot.services import users
@@ -349,7 +349,10 @@ async def cb_role(callback: CallbackQuery, state: FSMContext) -> None:
             )
         await state.clear()
         if callback.message:
-            await callback.message.edit_text(t(lang, "register_guest_done"))
+            await callback.message.edit_text(
+                t(lang, "register_guest_done", invite=COMMUNITY_INVITE_URL),
+                disable_web_page_preview=True,
+            )
         await callback.answer()
         return
 
@@ -811,5 +814,8 @@ async def _finalize_registration(
         callback.from_user.id, u.role, u.is_licensed_contractor,
     )
     if callback.message:
-        await callback.message.edit_text(t(lang, "register_done"))
+        await callback.message.edit_text(
+            t(lang, "register_done", invite=COMMUNITY_INVITE_URL),
+            disable_web_page_preview=True,
+        )
     await callback.answer()
