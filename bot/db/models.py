@@ -196,7 +196,7 @@ class Listing(Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     kind: Mapped[str] = mapped_column(String(16))  # offer | seek
-    text: Mapped[str] = mapped_column(Text)
+    text: Mapped[str] = mapped_column(Text)  # описание (до 1000 символов)
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
     # status: pending | approved | rejected | expired
     created_at: Mapped[datetime] = mapped_column(
@@ -209,6 +209,25 @@ class Listing(Base):
     reject_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     channel_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
+    # v2: структурированные поля от FSM /post
+    num_people: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # 1..5 (5 значит "5+"), для offer
+    engagement_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 'one_time' | 'part_time' (для seek)
+    helper_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 'pro' | 'helper' | 'any' (для offer)
+    language_req: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # offer: 'none' | 'ru' | 'en' | 'any'
+    # seek: 'ru' | 'en' | 'ru_en'
+    duration: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 'hours' | 'day' | 'few_days' | 'week_plus' | 'longterm'
+    urgency: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 'urgent' | 'this_week' | 'this_month' | 'flexible'
+    budget: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 'under_500' | '500_2k' | '2k_10k' | 'over_10k' | 'discuss' | None
+    contact_override: Mapped[str | None] = mapped_column(String(254), nullable=True)
+    # если автор для этого объявления указал другой контакт
+
     author: Mapped["User"] = relationship(
         "User", back_populates="listings", foreign_keys=[user_id]
     )
@@ -218,6 +237,27 @@ class Listing(Base):
     responses: Mapped[list["Response"]] = relationship(
         "Response", back_populates="listing", cascade="all, delete-orphan"
     )
+    photos: Mapped[list["ListingPhoto"]] = relationship(
+        "ListingPhoto", back_populates="listing", cascade="all, delete-orphan"
+    )
+
+
+class ListingPhoto(Base):
+    """Фото к объявлению — храним Telegram file_id, не сами байты."""
+
+    __tablename__ = "listing_photos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    listing_id: Mapped[int] = mapped_column(
+        ForeignKey("listings.id", ondelete="CASCADE"), index=True
+    )
+    file_id: Mapped[str] = mapped_column(String(256))
+    caption: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+    listing: Mapped["Listing"] = relationship("Listing", back_populates="photos")
 
 
 class ListingTag(Base):

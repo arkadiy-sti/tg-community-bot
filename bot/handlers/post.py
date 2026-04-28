@@ -1,0 +1,1065 @@
+"""FSM создания объявления /post.
+
+Шаги: kind → locations → skills → (num_people|engagement) → helper_kind →
+language → duration → urgency → budget → description → photos → contact → preview.
+
+После Submit объявление сохраняется со status='pending'.
+Модерация и публикация — в bot/handlers/post_moderation.py (часть 2).
+"""
+from __future__ import annotations
+
+import logging
+
+from aiogram import F, Router
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
+
+from bot.db.database import get_session
+from bot.db.models import Tag
+from bot.i18n import normalize_lang, t
+from bot.services import listings as listings_svc
+from bot.services import users
+from bot.services.tags import list_tags_by_category
+
+log = logging.getLogger(__name__)
+router = Router(name="post")
+
+
+# ---------------------------------------------------------------------------
+# Состояния FSM
+# ---------------------------------------------------------------------------
+
+
+class PostStates(StatesGroup):
+    kind = State()
+    locations = State()
+    skills = State()
+    num_people = State()        # offer
+    engagement = State()        # seek
+    helper_kind = State()       # offer
+    language = State()
+    duration = State()
+    urgency = State()
+    budget = State()            # offer (опц.)
+    description = State()
+    photos = State()
+    contact = State()
+    contact_other = State()
+    preview = State()
+
+
+# ---------------------------------------------------------------------------
+# Клавиатуры
+# ---------------------------------------------------------------------------
+
+
+def _kb_kind(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t(lang, "post_kind_offer_btn"),
+                                  callback_data="p:k:offer")],
+            [InlineKeyboardButton(text=t(lang, "post_kind_seek_btn"),
+                                  callback_data="p:k:seek")],
+            [InlineKeyboardButton(text=t(lang, "post_cancel"),
+                                  callback_data="p:cancel")],
+        ]
+    )
+
+
+def _kb_tag_grid(
+    tags: list[Tag],
+    lang: str,
+    *,
+    selected: set[int],
+    show_done: bool = True,
+    cb_prefix: str = "p:t",
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    line: list[InlineKeyboardButton] = []
+    for tag in tags:
+        label = tag.label_ru if lang == "ru" else tag.label_en
+        prefix = "☑ " if tag.id in selected else ""
+        line.append(InlineKeyboardButton(
+            text=f"{prefix}{label}",
+            callback_data=f"{cb_prefix}:{tag.id}",
+        ))
+        if len(line) == 3:
+            rows.append(line)
+            line = []
+    if line:
+        rows.append(line)
+    bottom: list[InlineKeyboardButton] = []
+    if show_done:
+        bottom.append(InlineKeyboardButton(
+            text=t(lang, "post_done") + f" ({len(selected)})",
+            callback_data=f"{cb_prefix}:done",
+        ))
+    bottom.append(InlineKeyboardButton(
+        text=t(lang, "post_cancel"), callback_data="p:cancel"
+    ))
+    rows.append(bottom)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _kb_simple_choices(
+    items: list[tuple[str, str]],
+    lang: str,
+    *,
+    show_skip: bool = False,
+    show_cancel: bool = True,
+) -> InlineKeyboardMarkup:
+    """items = [(callback_value, label_text), …]"""
+    rows = [
+        [InlineKeyboardButton(text=lbl, callback_data=cb)]
+        for cb, lbl in items
+    ]
+    bottom: list[InlineKeyboardButton] = []
+    if show_skip:
+        bottom.append(InlineKeyboardButton(
+            text=t(lang, "post_skip"), callback_data="p:skip"
+        ))
+    if show_cancel:
+        bottom.append(InlineKeyboardButton(
+            text=t(lang, "post_cancel"), callback_data="p:cancel"
+        ))
+    if bottom:
+        rows.append(bottom)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _kb_num_people(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="1", callback_data="p:n:1"),
+            InlineKeyboardButton(text="2", callback_data="p:n:2"),
+            InlineKeyboardButton(text="3", callback_data="p:n:3"),
+            InlineKeyboardButton(text="4", callback_data="p:n:4"),
+            InlineKeyboardButton(
+                text=t(lang, "post_num_5_plus"), callback_data="p:n:5"
+            ),
+        ],
+        [InlineKeyboardButton(text=t(lang, "post_cancel"), callback_data="p:cancel")],
+    ])
+
+
+def _kb_engagement(lang: str) -> InlineKeyboardMarkup:
+    return _kb_simple_choices([
+        ("p:e:one_time", t(lang, "post_engagement_one_time")),
+        ("p:e:part_time", t(lang, "post_engagement_part_time")),
+    ], lang)
+
+
+def _kb_helper(lang: str) -> InlineKeyboardMarkup:
+    return _kb_simple_choices([
+        ("p:hk:pro", t(lang, "post_helper_pro")),
+        ("p:hk:helper", t(lang, "post_helper_helper")),
+        ("p:hk:any", t(lang, "post_helper_any")),
+    ], lang)
+
+
+def _kb_language_offer(lang: str) -> InlineKeyboardMarkup:
+    return _kb_simple_choices([
+        ("p:lo:none", t(lang, "post_lang_offer_none")),
+        ("p:lo:ru", t(lang, "post_lang_offer_ru")),
+        ("p:lo:en", t(lang, "post_lang_offer_en")),
+        ("p:lo:any", t(lang, "post_lang_offer_any")),
+    ], lang)
+
+
+def _kb_language_seek(lang: str, selected: set[str]) -> InlineKeyboardMarkup:
+    rows = []
+    for code, key in [("ru", "post_lang_seek_ru"), ("en", "post_lang_seek_en")]:
+        prefix = "☑ " if code in selected else ""
+        rows.append([InlineKeyboardButton(
+            text=f"{prefix}{t(lang, key)}",
+            callback_data=f"p:ls:{code}",
+        )])
+    rows.append([
+        InlineKeyboardButton(
+            text=t(lang, "post_done") + f" ({len(selected)})",
+            callback_data="p:ls:done",
+        ),
+        InlineKeyboardButton(text=t(lang, "post_cancel"), callback_data="p:cancel"),
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _kb_duration(lang: str) -> InlineKeyboardMarkup:
+    return _kb_simple_choices([
+        ("p:dur:hours", t(lang, "post_duration_hours")),
+        ("p:dur:day", t(lang, "post_duration_day")),
+        ("p:dur:few_days", t(lang, "post_duration_few_days")),
+        ("p:dur:week_plus", t(lang, "post_duration_week_plus")),
+        ("p:dur:longterm", t(lang, "post_duration_longterm")),
+    ], lang)
+
+
+def _kb_urgency(lang: str) -> InlineKeyboardMarkup:
+    return _kb_simple_choices([
+        ("p:u:urgent", t(lang, "post_urgency_urgent")),
+        ("p:u:this_week", t(lang, "post_urgency_this_week")),
+        ("p:u:this_month", t(lang, "post_urgency_this_month")),
+        ("p:u:flexible", t(lang, "post_urgency_flexible")),
+    ], lang)
+
+
+def _kb_budget(lang: str) -> InlineKeyboardMarkup:
+    return _kb_simple_choices([
+        ("p:b:under_500", t(lang, "post_budget_under_500")),
+        ("p:b:500_2k", t(lang, "post_budget_500_2k")),
+        ("p:b:2k_10k", t(lang, "post_budget_2k_10k")),
+        ("p:b:over_10k", t(lang, "post_budget_over_10k")),
+        ("p:b:discuss", t(lang, "post_budget_discuss")),
+    ], lang, show_skip=True)
+
+
+def _kb_photos(lang: str, n: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text=t(lang, "post_photos_done").format(n=n),
+            callback_data="p:ph:done",
+        ),
+        InlineKeyboardButton(text=t(lang, "post_skip"), callback_data="p:ph:skip"),
+        InlineKeyboardButton(text=t(lang, "post_cancel"), callback_data="p:cancel"),
+    ]])
+
+
+def _kb_contact_choice(lang: str) -> InlineKeyboardMarkup:
+    return _kb_simple_choices([
+        ("p:c:keep", t(lang, "post_contact_keep")),
+        ("p:c:other", t(lang, "post_contact_other")),
+    ], lang)
+
+
+def _kb_preview(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=t(lang, "post_send"), callback_data="p:submit"),
+        InlineKeyboardButton(text=t(lang, "post_cancel"), callback_data="p:cancel"),
+    ]])
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _default_contact_label(user) -> str:
+    if user.contact_phone:
+        return f"📱 {user.contact_phone}"
+    if user.contact_whatsapp:
+        return f"💬 WhatsApp {user.contact_whatsapp}"
+    if user.contact_email:
+        return f"✉️ {user.contact_email}"
+    return "Telegram DM"
+
+
+async def _send_locations_step(message: Message, state: FSMContext, lang: str) -> None:
+    data = await state.get_data()
+    selected = set(data.get("location_ids", []))
+    async with get_session() as session:
+        loc_tags = await list_tags_by_category(session, "location")
+    text = t(
+        lang, "post_ask_locations",
+        limit=listings_svc.MAX_LOCATIONS, selected=len(selected),
+    )
+    kb = _kb_tag_grid(
+        loc_tags, lang, selected=selected, show_done=True, cb_prefix="p:l"
+    )
+    await state.set_state(PostStates.locations)
+    await message.answer(text, reply_markup=kb)
+
+
+async def _send_skills_step(message: Message, state: FSMContext, lang: str) -> None:
+    data = await state.get_data()
+    selected = set(data.get("skill_ids", []))
+    async with get_session() as session:
+        skill_tags = await list_tags_by_category(session, "skill")
+    text = t(
+        lang, "post_ask_skills",
+        limit=listings_svc.MAX_SKILL_TAGS, selected=len(selected),
+    )
+    kb = _kb_tag_grid(
+        skill_tags, lang, selected=selected, show_done=True, cb_prefix="p:s"
+    )
+    await state.set_state(PostStates.skills)
+    await message.answer(text, reply_markup=kb)
+
+
+async def _go_after_skills(message: Message, state: FSMContext, lang: str) -> None:
+    data = await state.get_data()
+    if data.get("kind") == "offer":
+        await state.set_state(PostStates.num_people)
+        await message.answer(t(lang, "post_ask_num_people"),
+                             reply_markup=_kb_num_people(lang))
+    else:
+        await state.set_state(PostStates.engagement)
+        await message.answer(t(lang, "post_ask_engagement"),
+                             reply_markup=_kb_engagement(lang))
+
+
+async def _go_to_language(message: Message, state: FSMContext, lang: str) -> None:
+    data = await state.get_data()
+    if data.get("kind") == "offer":
+        await state.set_state(PostStates.language)
+        await message.answer(t(lang, "post_ask_language_offer"),
+                             reply_markup=_kb_language_offer(lang))
+    else:
+        await state.update_data(seek_languages=set())
+        await state.set_state(PostStates.language)
+        await message.answer(
+            t(lang, "post_ask_language_seek"),
+            reply_markup=_kb_language_seek(lang, set()),
+        )
+
+
+async def _go_to_duration(message: Message, state: FSMContext, lang: str) -> None:
+    await state.set_state(PostStates.duration)
+    await message.answer(t(lang, "post_ask_duration"),
+                         reply_markup=_kb_duration(lang))
+
+
+async def _go_to_urgency(message: Message, state: FSMContext, lang: str) -> None:
+    await state.set_state(PostStates.urgency)
+    await message.answer(t(lang, "post_ask_urgency"),
+                         reply_markup=_kb_urgency(lang))
+
+
+async def _go_to_budget_or_description(
+    message: Message, state: FSMContext, lang: str
+) -> None:
+    """Бюджет — только для offer. Для seek сразу к описанию."""
+    data = await state.get_data()
+    if data.get("kind") == "offer":
+        await state.set_state(PostStates.budget)
+        await message.answer(t(lang, "post_ask_budget"),
+                             reply_markup=_kb_budget(lang))
+    else:
+        await _go_to_description(message, state, lang)
+
+
+async def _go_to_description(
+    message: Message, state: FSMContext, lang: str
+) -> None:
+    await state.set_state(PostStates.description)
+    await message.answer(t(lang, "post_ask_description"))
+
+
+async def _go_to_photos(message: Message, state: FSMContext, lang: str) -> None:
+    await state.update_data(photo_ids=[])
+    await state.set_state(PostStates.photos)
+    await message.answer(
+        t(lang, "post_ask_photos", limit=listings_svc.MAX_PHOTOS),
+        reply_markup=_kb_photos(lang, 0),
+    )
+
+
+async def _go_to_contact(message: Message, state: FSMContext, lang: str) -> None:
+    if message.from_user is None:
+        return
+    async with get_session() as session:
+        u = await users.get_user(session, message.from_user.id)
+    if u is None:
+        await state.clear()
+        return
+    contact_label = _default_contact_label(u)
+    await state.set_state(PostStates.contact)
+    await message.answer(
+        t(lang, "post_ask_contact", contact=contact_label),
+        reply_markup=_kb_contact_choice(lang),
+    )
+
+
+async def _go_to_preview(message: Message, state: FSMContext, lang: str) -> None:
+    """Сохранить объявление в черновик в state (не в БД ещё) и показать preview."""
+    if message.from_user is None:
+        return
+    data = await state.get_data()
+    async with get_session() as session:
+        u = await users.get_user(session, message.from_user.id)
+        if u is None:
+            await state.clear()
+            return
+        # Делаем псевдо-Listing для рендера превью без записи в БД
+        from bot.db.models import Listing as ListingModel
+        preview = ListingModel(
+            user_id=u.id,
+            kind=data.get("kind", "offer"),
+            text=data.get("description", ""),
+            num_people=data.get("num_people"),
+            engagement_kind=data.get("engagement_kind"),
+            helper_kind=data.get("helper_kind"),
+            language_req=data.get("language_req"),
+            duration=data.get("duration"),
+            urgency=data.get("urgency"),
+            budget=data.get("budget"),
+            contact_override=data.get("contact_override"),
+        )
+        preview.id = 0
+        preview.author = u
+        # Подгружаем теги вручную из IDs
+        from sqlalchemy import select
+        rs = await session.execute(
+            select(Tag).where(
+                Tag.id.in_(list(data.get("location_ids", []))
+                           + list(data.get("skill_ids", [])))
+            )
+        )
+        loaded_tags = list(rs.scalars().all())
+        # Хак: render_listing делает свой запрос за tags по listing_id —
+        # для preview подменим, собрав текст вручную.
+    text = await _render_preview(data, u, loaded_tags, lang)
+    await state.set_state(PostStates.preview)
+    await message.answer(
+        t(lang, "post_preview_title") + "\n\n" + text,
+        reply_markup=_kb_preview(lang),
+    )
+
+
+async def _render_preview(
+    data: dict, user, tags: list[Tag], lang: str
+) -> str:
+    """Превью (для preview-step) — собираем как render_listing, но из state."""
+    locs = [tg for tg in tags if tg.category == "location"
+            and tg.id in data.get("location_ids", [])]
+    skills = [tg for tg in tags if tg.category != "location"
+              and tg.id in data.get("skill_ids", [])]
+    loc_str = ", ".join(t.label_ru if lang == "ru" else t.label_en for t in locs) or "—"
+    skill_str = ", ".join(t.label_ru if lang == "ru" else t.label_en for t in skills) or "—"
+
+    kind = data.get("kind")
+    parts = [
+        f"<b>{listings_svc.label(listings_svc.KIND_LABELS, lang, kind)}</b>",
+        "",
+        f"📍 Район: <b>{loc_str}</b>",
+        f"🏷 Виды работ: <b>{skill_str}</b>",
+    ]
+    if kind == "offer":
+        n = data.get("num_people")
+        if n:
+            parts.append(f"👥 Нужно человек: <b>{listings_svc.NUM_PEOPLE_LABELS.get(n, n)}</b>")
+        hk = data.get("helper_kind")
+        if hk:
+            parts.append(f"👷 Кто нужен: <b>{listings_svc.label(listings_svc.HELPER_LABELS, lang, hk)}</b>")
+        lr = data.get("language_req")
+        if lr:
+            parts.append(f"🗣 Язык общения: <b>{listings_svc.label(listings_svc.LANGUAGE_OFFER_LABELS, lang, lr)}</b>")
+        b = data.get("budget")
+        if b:
+            parts.append(f"💵 Бюджет: <b>{listings_svc.label(listings_svc.BUDGET_LABELS, lang, b)}</b>")
+    else:
+        ek = data.get("engagement_kind")
+        if ek:
+            parts.append(f"📋 Занятость: <b>{listings_svc.label(listings_svc.ENGAGEMENT_LABELS, lang, ek)}</b>")
+        lr = data.get("language_req")
+        if lr:
+            parts.append(f"🗣 Языки: <b>{listings_svc.label(listings_svc.LANGUAGE_SEEK_LABELS, lang, lr)}</b>")
+
+    parts.append(f"⏱ Длительность: <b>{listings_svc.label(listings_svc.DURATION_LABELS, lang, data.get('duration'))}</b>")
+    parts.append(f"⚡ Срочность: <b>{listings_svc.label(listings_svc.URGENCY_LABELS, lang, data.get('urgency'))}</b>")
+    parts.append("")
+    parts.append(data.get("description", "—"))
+
+    contact = data.get("contact_override") or _default_contact_label(user)
+    parts.append("")
+    parts.append(f"📞 Контакт: {contact}")
+
+    photos = data.get("photo_ids", [])
+    if photos:
+        parts.append(f"\n📷 Фото: {len(photos)}")
+    return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# /post — старт
+# ---------------------------------------------------------------------------
+
+
+@router.message(Command("post"))
+async def cmd_post(message: Message, state: FSMContext) -> None:
+    if message.chat.type != "private" or message.from_user is None:
+        return
+    async with get_session() as session:
+        u = await users.get_user(session, message.from_user.id)
+    if u is None or u.role != "coworker":
+        lang = normalize_lang(u.language if u else None)
+        await message.answer(t(lang, "post_only_coworkers"))
+        return
+    lang = normalize_lang(u.language)
+    # Soft-лимит — пока только warning, не блокируем
+    async with get_session() as session:
+        recent = await listings_svc.count_recent_listings(session, u.id)
+    log.info("/post by tg_id=%s recent_30d=%s", message.from_user.id, recent)
+
+    await state.clear()
+    await state.update_data(lang=lang)
+    await state.set_state(PostStates.kind)
+    await message.answer(t(lang, "post_kind_choose"), reply_markup=_kb_kind(lang))
+
+
+# ---------------------------------------------------------------------------
+# Cancel — глобальный для всех состояний /post
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(F.data == "p:cancel")
+async def cb_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.clear()
+    if callback.message:
+        try:
+            await callback.message.edit_text(t(lang, "post_canceled"))
+        except Exception:
+            pass
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Шаг 1: kind
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(PostStates.kind, F.data.startswith("p:k:"))
+async def cb_kind(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None:
+        return
+    kind = callback.data.split(":")[2]
+    if kind not in ("offer", "seek"):
+        await callback.answer()
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.update_data(kind=kind, location_ids=[], skill_ids=[])
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup()
+        except Exception:
+            pass
+        await _send_locations_step(callback.message, state, lang)
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Шаг 2: locations (multi-select)
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(PostStates.locations, F.data.startswith("p:l:"))
+async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None:
+        return
+    payload = callback.data.split(":", 2)[2]
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    selected: list[int] = list(data.get("location_ids", []))
+
+    if payload == "done":
+        if not selected:
+            await callback.answer(t(lang, "post_need_locations"), show_alert=True)
+            return
+        if callback.message:
+            try:
+                await callback.message.edit_reply_markup()
+            except Exception:
+                pass
+            await _send_skills_step(callback.message, state, lang)
+        await callback.answer()
+        return
+
+    try:
+        tag_id = int(payload)
+    except ValueError:
+        await callback.answer()
+        return
+
+    s = set(selected)
+    if tag_id in s:
+        s.remove(tag_id)
+    else:
+        if len(s) >= listings_svc.MAX_LOCATIONS:
+            await callback.answer(
+                t(lang, "post_need_locations"), show_alert=False,
+            )
+            return
+        s.add(tag_id)
+    await state.update_data(location_ids=list(s))
+
+    # Перерисовать клавиатуру
+    async with get_session() as session:
+        loc_tags = await list_tags_by_category(session, "location")
+    if callback.message:
+        try:
+            await callback.message.edit_text(
+                t(lang, "post_ask_locations",
+                  limit=listings_svc.MAX_LOCATIONS, selected=len(s)),
+                reply_markup=_kb_tag_grid(loc_tags, lang, selected=s,
+                                           show_done=True, cb_prefix="p:l"),
+            )
+        except Exception:
+            pass
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Шаг 3: skills (multi-select)
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(PostStates.skills, F.data.startswith("p:s:"))
+async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None:
+        return
+    payload = callback.data.split(":", 2)[2]
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    selected = list(data.get("skill_ids", []))
+
+    if payload == "done":
+        if not selected:
+            await callback.answer(t(lang, "post_need_skills"), show_alert=True)
+            return
+        if callback.message:
+            try:
+                await callback.message.edit_reply_markup()
+            except Exception:
+                pass
+            await _go_after_skills(callback.message, state, lang)
+        await callback.answer()
+        return
+
+    try:
+        tag_id = int(payload)
+    except ValueError:
+        await callback.answer()
+        return
+
+    s = set(selected)
+    if tag_id in s:
+        s.remove(tag_id)
+    else:
+        if len(s) >= listings_svc.MAX_SKILL_TAGS:
+            await callback.answer()
+            return
+        s.add(tag_id)
+    await state.update_data(skill_ids=list(s))
+
+    async with get_session() as session:
+        skill_tags = await list_tags_by_category(session, "skill")
+    if callback.message:
+        try:
+            await callback.message.edit_text(
+                t(lang, "post_ask_skills",
+                  limit=listings_svc.MAX_SKILL_TAGS, selected=len(s)),
+                reply_markup=_kb_tag_grid(skill_tags, lang, selected=s,
+                                           show_done=True, cb_prefix="p:s"),
+            )
+        except Exception:
+            pass
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Шаг 4a: num_people (offer)
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(PostStates.num_people, F.data.startswith("p:n:"))
+async def cb_num_people(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None:
+        return
+    n = int(callback.data.split(":")[2])
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.update_data(num_people=n)
+    await state.set_state(PostStates.helper_kind)
+    if callback.message:
+        await callback.message.edit_text(
+            t(lang, "post_ask_helper_kind"), reply_markup=_kb_helper(lang)
+        )
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Шаг 4b: engagement (seek)
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(PostStates.engagement, F.data.startswith("p:e:"))
+async def cb_engagement(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None:
+        return
+    e = callback.data.split(":")[2]
+    if e not in ("one_time", "part_time"):
+        await callback.answer()
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.update_data(engagement_kind=e)
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup()
+        except Exception:
+            pass
+        await _go_to_language(callback.message, state, lang)
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Шаг 5: helper_kind (offer)
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(PostStates.helper_kind, F.data.startswith("p:hk:"))
+async def cb_helper(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None:
+        return
+    hk = callback.data.split(":")[2]
+    if hk not in ("pro", "helper", "any"):
+        await callback.answer()
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.update_data(helper_kind=hk)
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup()
+        except Exception:
+            pass
+        await _go_to_language(callback.message, state, lang)
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Шаг 6: language
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(PostStates.language, F.data.startswith("p:lo:"))
+async def cb_language_offer(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None:
+        return
+    code = callback.data.split(":")[2]
+    if code not in ("none", "ru", "en", "any"):
+        await callback.answer()
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.update_data(language_req=code)
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup()
+        except Exception:
+            pass
+        await _go_to_duration(callback.message, state, lang)
+    await callback.answer()
+
+
+@router.callback_query(PostStates.language, F.data.startswith("p:ls:"))
+async def cb_language_seek(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None:
+        return
+    payload = callback.data.split(":")[2]
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    selected: set[str] = set(data.get("seek_languages", []))
+
+    if payload == "done":
+        if not selected:
+            await callback.answer(t(lang, "post_need_languages"), show_alert=True)
+            return
+        # Кодируем: ru / en / ru_en
+        if "ru" in selected and "en" in selected:
+            code = "ru_en"
+        elif "ru" in selected:
+            code = "ru"
+        else:
+            code = "en"
+        await state.update_data(language_req=code)
+        if callback.message:
+            try:
+                await callback.message.edit_reply_markup()
+            except Exception:
+                pass
+            await _go_to_duration(callback.message, state, lang)
+        await callback.answer()
+        return
+
+    if payload not in ("ru", "en"):
+        await callback.answer()
+        return
+
+    if payload in selected:
+        selected.remove(payload)
+    else:
+        selected.add(payload)
+    await state.update_data(seek_languages=list(selected))
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup(
+                reply_markup=_kb_language_seek(lang, selected)
+            )
+        except Exception:
+            pass
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Шаг 7: duration
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(PostStates.duration, F.data.startswith("p:dur:"))
+async def cb_duration(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None:
+        return
+    code = callback.data.split(":")[2]
+    valid = {"hours", "day", "few_days", "week_plus", "longterm"}
+    if code not in valid:
+        await callback.answer()
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.update_data(duration=code)
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup()
+        except Exception:
+            pass
+        await _go_to_urgency(callback.message, state, lang)
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Шаг 8: urgency
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(PostStates.urgency, F.data.startswith("p:u:"))
+async def cb_urgency(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None:
+        return
+    code = callback.data.split(":")[2]
+    valid = {"urgent", "this_week", "this_month", "flexible"}
+    if code not in valid:
+        await callback.answer()
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.update_data(urgency=code)
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup()
+        except Exception:
+            pass
+        await _go_to_budget_or_description(callback.message, state, lang)
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Шаг 9: budget (offer only, опц.)
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(PostStates.budget, F.data.startswith("p:b:"))
+async def cb_budget(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.data is None:
+        return
+    code = callback.data.split(":")[2]
+    valid = {"under_500", "500_2k", "2k_10k", "over_10k", "discuss"}
+    if code not in valid:
+        await callback.answer()
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.update_data(budget=code)
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup()
+        except Exception:
+            pass
+        await _go_to_description(callback.message, state, lang)
+    await callback.answer()
+
+
+@router.callback_query(PostStates.budget, F.data == "p:skip")
+async def cb_budget_skip(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.update_data(budget=None)
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup()
+        except Exception:
+            pass
+        await _go_to_description(callback.message, state, lang)
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Шаг 10: description
+# ---------------------------------------------------------------------------
+
+
+@router.message(PostStates.description)
+async def step_description(message: Message, state: FSMContext) -> None:
+    if not message.text:
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    desc = message.text.strip()
+    if len(desc) > listings_svc.MAX_DESCRIPTION_LEN:
+        await message.answer(
+            t(lang, "post_too_long",
+              n=len(desc), max=listings_svc.MAX_DESCRIPTION_LEN)
+        )
+        return
+    await state.update_data(description=desc)
+    await _go_to_photos(message, state, lang)
+
+
+# ---------------------------------------------------------------------------
+# Шаг 11: photos (опц.)
+# ---------------------------------------------------------------------------
+
+
+@router.message(PostStates.photos, F.photo)
+async def step_photo(message: Message, state: FSMContext) -> None:
+    if not message.photo:
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    photo_ids = list(data.get("photo_ids", []))
+    if len(photo_ids) >= listings_svc.MAX_PHOTOS:
+        await message.answer(
+            t(lang, "post_photo_limit", limit=listings_svc.MAX_PHOTOS)
+        )
+        return
+    # Берём наибольший вариант (последний в списке photo)
+    photo_ids.append(message.photo[-1].file_id)
+    await state.update_data(photo_ids=photo_ids)
+    n = len(photo_ids)
+    await message.answer(
+        t(lang, "post_photo_added", n=n, limit=listings_svc.MAX_PHOTOS),
+        reply_markup=_kb_photos(lang, n),
+    )
+
+
+@router.callback_query(PostStates.photos, F.data == "p:ph:done")
+async def cb_photos_done(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup()
+        except Exception:
+            pass
+        await _go_to_contact(callback.message, state, lang)
+    await callback.answer()
+
+
+@router.callback_query(PostStates.photos, F.data == "p:ph:skip")
+async def cb_photos_skip(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.update_data(photo_ids=[])
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup()
+        except Exception:
+            pass
+        await _go_to_contact(callback.message, state, lang)
+    await callback.answer()
+
+
+# ---------------------------------------------------------------------------
+# Шаг 12: contact
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(PostStates.contact, F.data == "p:c:keep")
+async def cb_contact_keep(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.update_data(contact_override=None)
+    if callback.message:
+        try:
+            await callback.message.edit_reply_markup()
+        except Exception:
+            pass
+        await _go_to_preview(callback.message, state, lang)
+    await callback.answer()
+
+
+@router.callback_query(PostStates.contact, F.data == "p:c:other")
+async def cb_contact_other(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    await state.set_state(PostStates.contact_other)
+    if callback.message:
+        await callback.message.answer(t(lang, "post_ask_contact_other"))
+    await callback.answer()
+
+
+@router.message(PostStates.contact_other)
+async def step_contact_other(message: Message, state: FSMContext) -> None:
+    if not message.text:
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    contact = message.text.strip()[:254]
+    await state.update_data(contact_override=contact)
+    await _go_to_preview(message, state, lang)
+
+
+# ---------------------------------------------------------------------------
+# Шаг 13: preview & submit
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(PostStates.preview, F.data == "p:submit")
+async def cb_submit(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.from_user is None:
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    async with get_session() as session:
+        u = await users.get_user(session, callback.from_user.id)
+        if u is None:
+            await state.clear()
+            await callback.answer()
+            return
+        listing = await listings_svc.create_listing(
+            session,
+            user_id=u.id,
+            kind=data.get("kind", "offer"),
+            text=data.get("description", ""),
+            location_tag_ids=data.get("location_ids", []),
+            skill_tag_ids=data.get("skill_ids", []),
+            num_people=data.get("num_people"),
+            engagement_kind=data.get("engagement_kind"),
+            helper_kind=data.get("helper_kind"),
+            language_req=data.get("language_req"),
+            duration=data.get("duration"),
+            urgency=data.get("urgency"),
+            budget=data.get("budget"),
+            contact_override=data.get("contact_override"),
+            photo_file_ids=data.get("photo_ids", []),
+        )
+    await state.clear()
+    log.info(
+        "Listing created: id=%s kind=%s by tg_id=%s",
+        listing.id, listing.kind, callback.from_user.id,
+    )
+    if callback.message:
+        try:
+            await callback.message.edit_text(t(lang, "post_sent"))
+        except Exception:
+            await callback.message.answer(t(lang, "post_sent"))
+    await callback.answer()

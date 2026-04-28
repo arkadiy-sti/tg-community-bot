@@ -243,6 +243,111 @@ TEXTS: dict[str, dict[str, str]] = {
             "После этого ты сможешь смотреть карточки других участников и "
             "получать предложения о подходящих проектах."
         ),
+
+        # --- /post — создание объявления ---
+        "post_only_coworkers": (
+            "🔒 Публиковать объявления могут только зарегистрированные Coworker-ы.\n\n"
+            "Сначала зарегистрируйся: /register"
+        ),
+        "post_kind_choose": (
+            "Что публикуем?\n\n"
+            "💼 <b>Предлагаю работу</b> — у тебя есть проект, ищешь исполнителя.\n"
+            "🔎 <b>Ищу работу</b> — ты исполнитель, ищешь клиентов или подработку."
+        ),
+        "post_kind_offer_btn": "💼 Предлагаю работу",
+        "post_kind_seek_btn": "🔎 Ищу работу",
+        "post_ask_locations": (
+            "📍 В каких районах работа? (выбери до {limit})\n\n"
+            "Выбрано: {selected}/{limit}"
+        ),
+        "post_ask_skills": (
+            "🏷 Какие виды работ? (выбери до {limit})\n\n"
+            "Выбрано: {selected}/{limit}"
+        ),
+        "post_ask_num_people": "👥 Сколько нужно человек?",
+        "post_ask_engagement": "📋 Тип занятости?",
+        "post_ask_helper_kind": "👷 Кто нужен?",
+        "post_ask_language_offer": (
+            "🗣 Нужно общаться с заказчиком? И на каком языке?"
+        ),
+        "post_ask_language_seek": (
+            "🗣 На каких языках можешь общаться? (выбери все подходящие)"
+        ),
+        "post_ask_duration": "⏱ Сколько времени займёт работа?",
+        "post_ask_urgency": "⚡ Срочность?",
+        "post_ask_budget": (
+            "💵 Бюджет (опционально — можно пропустить):"
+        ),
+        "post_ask_description": (
+            "📝 Опиши работу подробнее. До 1000 символов.\n\n"
+            "Что важно: что нужно сделать, какие материалы, особенности объекта, "
+            "пожелания по графику. Чем конкретнее — тем лучше отклик."
+        ),
+        "post_ask_photos": (
+            "📷 Хочешь приложить фото? До {limit} штук.\n"
+            "Пришли фото одно за другим, потом нажми «✅ Готово».\n"
+            "Если не нужно — нажми «⏭ Пропустить»."
+        ),
+        "post_photos_done": "✅ Готово ({n})",
+        "post_photo_added": "📸 Фото добавлено ({n}/{limit}). Пришли ещё или нажми «✅ Готово».",
+        "post_photo_limit": "❌ Достигнут лимит {limit} фото. Нажми «✅ Готово».",
+        "post_ask_contact": (
+            "📞 На какой контакт принимать отклики?\n\n"
+            "По умолчанию используется твой приоритетный из профиля:\n<b>{contact}</b>"
+        ),
+        "post_contact_keep": "✅ Использовать этот",
+        "post_contact_other": "🔄 Указать другой",
+        "post_ask_contact_other": (
+            "Введи контакт для этого объявления одним сообщением.\n"
+            "Может быть телефон, WhatsApp, email или @username."
+        ),
+        "post_preview_title": "📋 <b>Проверь объявление перед отправкой</b>",
+        "post_send": "📨 Отправить",
+        "post_cancel": "✖ Отменить",
+        "post_skip": "⏭ Пропустить",
+        "post_back": "← Назад",
+        "post_done": "✅ Готово",
+        "post_sent": (
+            "✅ Объявление отправлено на модерацию.\n"
+            "Я напишу когда модератор проверит — обычно в течение суток."
+        ),
+        "post_canceled": "Создание объявления отменено.",
+        "post_too_long": "Слишком длинно ({n} символов, лимит {max}).",
+        "post_need_locations": "Выбери хотя бы один район.",
+        "post_need_skills": "Выбери хотя бы один вид работ.",
+        "post_need_languages": "Выбери хотя бы один язык.",
+        "post_limit_reached": (
+            "Лимит публикаций достигнут (≤{limit} в 30 дней). "
+            "Подожди или оформи подписку у админа."
+        ),
+
+        # Лейблы кнопок для /post
+        "post_num_5_plus": "5+",
+        "post_engagement_one_time": "На один проект",
+        "post_engagement_part_time": "Подработка",
+        "post_helper_pro": "🔧 Профессионал",
+        "post_helper_helper": "🛠 Помощник",
+        "post_helper_any": "Любой",
+        "post_lang_offer_none": "Общение не нужно",
+        "post_lang_offer_ru": "🇷🇺 Только русский",
+        "post_lang_offer_en": "🇺🇸 Только английский",
+        "post_lang_offer_any": "🌐 Любой язык",
+        "post_lang_seek_ru": "🇷🇺 Русский",
+        "post_lang_seek_en": "🇺🇸 Английский",
+        "post_duration_hours": "Несколько часов",
+        "post_duration_day": "1 день",
+        "post_duration_few_days": "2–5 дней",
+        "post_duration_week_plus": "Неделя+",
+        "post_duration_longterm": "Долгосрочно",
+        "post_urgency_urgent": "🔥 Срочно",
+        "post_urgency_this_week": "📅 На этой неделе",
+        "post_urgency_this_month": "🗓 В этом месяце",
+        "post_urgency_flexible": "⏳ Не горит",
+        "post_budget_under_500": "<$500",
+        "post_budget_500_2k": "$500–2K",
+        "post_budget_2k_10k": "$2K–10K",
+        "post_budget_over_10k": "$10K+",
+        "post_budget_discuss": "Обсуждаем",
         "profile_no_subscription": "Подписки нет — действуют только базовые функции.",
         "profile_subscription_active": "🟢 Подписка активна до {until}.",
         "profile_not_registered": "Ты ещё не зарегистрирован. Команда: /register",

@@ -45,6 +45,17 @@ _TAG_COLUMNS: list[tuple[str, str, str]] = [
     ("tags", "usages_count", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
+_LISTING_COLUMNS: list[tuple[str, str, str]] = [
+    ("listings", "num_people", "INTEGER"),
+    ("listings", "engagement_kind", "VARCHAR(16)"),
+    ("listings", "helper_kind", "VARCHAR(16)"),
+    ("listings", "language_req", "VARCHAR(16)"),
+    ("listings", "duration", "VARCHAR(16)"),
+    ("listings", "urgency", "VARCHAR(16)"),
+    ("listings", "budget", "VARCHAR(16)"),
+    ("listings", "contact_override", "VARCHAR(254)"),
+]
+
 
 async def _existing_columns(conn, table: str) -> set[str]:
     """Вернуть множество имён колонок для таблицы (PostgreSQL information_schema)."""
@@ -125,6 +136,26 @@ CREATE TABLE user_tags (
 )
 """.strip()
 
+_LISTING_PHOTOS_DDL_PG = """
+CREATE TABLE listing_photos (
+    id SERIAL PRIMARY KEY,
+    listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+    file_id VARCHAR(256) NOT NULL,
+    caption VARCHAR(256),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+)
+""".strip()
+
+_LISTING_PHOTOS_DDL_SQLITE = """
+CREATE TABLE listing_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+    file_id VARCHAR(256) NOT NULL,
+    caption VARCHAR(256),
+    created_at TIMESTAMP
+)
+""".strip()
+
 
 async def run_migrations(engine: AsyncEngine) -> None:
     """Прогнать все idempotent миграции. Безопасно вызывать на каждом старте."""
@@ -133,12 +164,20 @@ async def run_migrations(engine: AsyncEngine) -> None:
         await _ensure_columns(conn, _USER_COLUMNS)
         # 2. Колонки в tags (v2 — модерация custom тегов)
         await _ensure_columns(conn, _TAG_COLUMNS)
-        # 3. Таблица user_tags (v2). create_all создаст её на свежей БД,
-        #    но в проде где tags уже есть — нужно явно.
-        ddl = (
+        # 3. Колонки в listings (v2 — структурированные поля /post)
+        await _ensure_columns(conn, _LISTING_COLUMNS)
+        # 4. Таблица user_tags (v2)
+        ut_ddl = (
             _USER_TAGS_DDL_PG
             if conn.dialect.name == "postgresql"
             else _USER_TAGS_DDL_SQLITE
         )
-        await _ensure_table(conn, "user_tags", ddl)
+        await _ensure_table(conn, "user_tags", ut_ddl)
+        # 5. Таблица listing_photos (v2)
+        lp_ddl = (
+            _LISTING_PHOTOS_DDL_PG
+            if conn.dialect.name == "postgresql"
+            else _LISTING_PHOTOS_DDL_SQLITE
+        )
+        await _ensure_table(conn, "listing_photos", lp_ddl)
     log.info("Миграции применены")
