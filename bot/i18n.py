@@ -266,10 +266,13 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "post_ask_num_people": "👥 Сколько нужно человек?",
         "post_ask_engagement": "📋 Тип занятости?",
-        "post_ask_helper_kind": "👷 Кто нужен?",
-        "post_ask_language_offer": (
-            "🗣 Нужно общаться с заказчиком? И на каком языке?"
+        "post_ask_helper_kind": (
+            "👷 Кто нужен?\n\n"
+            "🔧 <b>Профессионал</b> — закроет работу под ключ, ведёт процесс сам. Ставка выше.\n"
+            "🛠 <b>Помощник</b> — работает под вашим руководством, заказчик ведёт процесс. Ставка ниже.\n"
+            "👤 <b>Любой</b> — рассмотрите оба варианта."
         ),
+        "post_ask_language_offer": "🗣 Нужно ли общаться с клиентом?",
         "post_ask_language_seek": (
             "🗣 На каких языках можешь общаться? (выбери все подходящие)"
         ),
@@ -328,12 +331,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "post_helper_pro": "🔧 Профессионал",
         "post_helper_helper": "🛠 Помощник",
         "post_helper_any": "Любой",
-        "post_lang_offer_none": "Общение не нужно",
-        "post_lang_offer_ru": "🇷🇺 Только русский",
-        "post_lang_offer_en": "🇺🇸 Только английский",
-        "post_lang_offer_any": "🌐 Любой язык",
-        "post_lang_seek_ru": "🇷🇺 Русский",
-        "post_lang_seek_en": "🇺🇸 Английский",
+        "post_lang_offer_none": "Общение не требуется",
+        "post_lang_offer_ru": "Русский",
+        "post_lang_offer_en": "Английский",
+        "post_lang_seek_ru": "Русский",
+        "post_lang_seek_en": "Английский",
         "post_duration_hours": "Несколько часов",
         "post_duration_day": "1 день",
         "post_duration_few_days": "2–5 дней",

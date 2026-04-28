@@ -51,21 +51,22 @@ HELPER_LABELS = {
 LANGUAGE_OFFER_LABELS = {
     "ru": {
         "none": "Общение не требуется",
-        "ru": "Только русский",
-        "en": "Только английский",
+        "ru": "Русский",
+        "en": "Английский",
+        # 'any' оставлен для обратной совместимости со старыми данными
         "any": "Любой язык",
     },
     "en": {
         "none": "No talking needed",
-        "ru": "Russian only",
-        "en": "English only",
+        "ru": "Russian",
+        "en": "English",
         "any": "Any language",
     },
 }
 
 LANGUAGE_SEEK_LABELS = {
-    "ru": {"ru": "🇷🇺 Русский", "en": "🇺🇸 Английский", "ru_en": "🇷🇺🇺🇸 Русский + Английский"},
-    "en": {"ru": "🇷🇺 Russian", "en": "🇺🇸 English", "ru_en": "🇷🇺🇺🇸 Russian + English"},
+    "ru": {"ru": "Русский", "en": "Английский", "ru_en": "Русский + Английский"},
+    "en": {"ru": "Russian", "en": "English", "ru_en": "Russian + English"},
 }
 
 DURATION_LABELS = {

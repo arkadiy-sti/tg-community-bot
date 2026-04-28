@@ -169,7 +169,6 @@ def _kb_language_offer(lang: str) -> InlineKeyboardMarkup:
         ("p:lo:none", t(lang, "post_lang_offer_none")),
         ("p:lo:ru", t(lang, "post_lang_offer_ru")),
         ("p:lo:en", t(lang, "post_lang_offer_en")),
-        ("p:lo:any", t(lang, "post_lang_offer_any")),
     ], lang)
 
 
@@ -360,29 +359,34 @@ async def _go_to_photos(message: Message, state: FSMContext, lang: str) -> None:
     )
 
 
-async def _go_to_contact(message: Message, state: FSMContext, lang: str) -> None:
-    if message.from_user is None:
-        return
+async def _go_to_contact(
+    target_message: Message, state: FSMContext, lang: str, *, tg_id: int
+) -> None:
+    """Перейти к шагу выбора контакта.
+
+    tg_id передаётся явно, потому что target_message.from_user может быть
+    ботом (когда вызвано из callback_query).
+    """
     async with get_session() as session:
-        u = await users.get_user(session, message.from_user.id)
+        u = await users.get_user(session, tg_id)
     if u is None:
         await state.clear()
         return
     contact_label = _default_contact_label(u)
     await state.set_state(PostStates.contact)
-    await message.answer(
+    await target_message.answer(
         t(lang, "post_ask_contact", contact=contact_label),
         reply_markup=_kb_contact_choice(lang),
     )
 
 
-async def _go_to_preview(message: Message, state: FSMContext, lang: str) -> None:
-    """Сохранить объявление в черновик в state (не в БД ещё) и показать preview."""
-    if message.from_user is None:
-        return
+async def _go_to_preview(
+    target_message: Message, state: FSMContext, lang: str, *, tg_id: int
+) -> None:
+    """Показать preview. tg_id явно — см. комментарий выше."""
     data = await state.get_data()
     async with get_session() as session:
-        u = await users.get_user(session, message.from_user.id)
+        u = await users.get_user(session, tg_id)
         if u is None:
             await state.clear()
             return
@@ -746,7 +750,7 @@ async def cb_language_offer(callback: CallbackQuery, state: FSMContext) -> None:
     if callback.data is None:
         return
     code = callback.data.split(":")[2]
-    if code not in ("none", "ru", "en", "any"):
+    if code not in ("none", "ru", "en"):
         await callback.answer()
         return
     data = await state.get_data()
@@ -953,6 +957,8 @@ async def step_photo(message: Message, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.photos, F.data == "p:ph:done")
 async def cb_photos_done(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.from_user is None:
+        return
     data = await state.get_data()
     lang = data.get("lang", "ru")
     if callback.message:
@@ -960,12 +966,16 @@ async def cb_photos_done(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.message.edit_reply_markup()
         except Exception:
             pass
-        await _go_to_contact(callback.message, state, lang)
+        await _go_to_contact(
+            callback.message, state, lang, tg_id=callback.from_user.id
+        )
     await callback.answer()
 
 
 @router.callback_query(PostStates.photos, F.data == "p:ph:skip")
 async def cb_photos_skip(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.from_user is None:
+        return
     data = await state.get_data()
     lang = data.get("lang", "ru")
     await state.update_data(photo_ids=[])
@@ -974,7 +984,9 @@ async def cb_photos_skip(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.message.edit_reply_markup()
         except Exception:
             pass
-        await _go_to_contact(callback.message, state, lang)
+        await _go_to_contact(
+            callback.message, state, lang, tg_id=callback.from_user.id
+        )
     await callback.answer()
 
 
@@ -985,6 +997,8 @@ async def cb_photos_skip(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.contact, F.data == "p:c:keep")
 async def cb_contact_keep(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.from_user is None:
+        return
     data = await state.get_data()
     lang = data.get("lang", "ru")
     await state.update_data(contact_override=None)
@@ -993,7 +1007,9 @@ async def cb_contact_keep(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.message.edit_reply_markup()
         except Exception:
             pass
-        await _go_to_preview(callback.message, state, lang)
+        await _go_to_preview(
+            callback.message, state, lang, tg_id=callback.from_user.id
+        )
     await callback.answer()
 
 
@@ -1009,13 +1025,13 @@ async def cb_contact_other(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.message(PostStates.contact_other)
 async def step_contact_other(message: Message, state: FSMContext) -> None:
-    if not message.text:
+    if not message.text or message.from_user is None:
         return
     data = await state.get_data()
     lang = data.get("lang", "ru")
     contact = message.text.strip()[:254]
     await state.update_data(contact_override=contact)
-    await _go_to_preview(message, state, lang)
+    await _go_to_preview(message, state, lang, tg_id=message.from_user.id)
 
 
 # ---------------------------------------------------------------------------
