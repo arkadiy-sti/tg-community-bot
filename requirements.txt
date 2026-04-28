@@ -8,3 +8,5 @@ pydantic-settings==2.6.1
 python-dotenv==1.0.1
 wordcloud==1.9.3
 Pillow==10.4.0
+phonenumbers==8.13.49
+email-validator==2.2.0

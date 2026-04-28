@@ -7,6 +7,11 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import (
+    BotCommand,
+    BotCommandScopeAllGroupChats,
+    BotCommandScopeAllPrivateChats,
+)
 
 from bot.config import get_settings
 from bot.db.database import dispose as db_dispose
@@ -14,6 +19,37 @@ from bot.db.database import init_db
 from bot.handlers import get_main_router
 from bot.middlewares.activity import ActivityMiddleware
 from bot.middlewares.antispam import AntispamMiddleware
+
+
+PRIVATE_COMMANDS = [
+    BotCommand(command="start", description="Начать / Restart"),
+    BotCommand(command="register", description="Регистрация / Register"),
+    BotCommand(command="profile", description="Мой профиль / My profile"),
+    BotCommand(command="edit", description="Изменить профиль / Edit profile"),
+    BotCommand(command="check", description="Карточка @username / Check user"),
+    BotCommand(command="post", description="Объявление / Post a listing"),
+    BotCommand(command="lang", description="Язык / Language"),
+    BotCommand(command="rules", description="Правила / Rules"),
+    BotCommand(command="help", description="Помощь / Help"),
+    BotCommand(command="delete_me", description="Удалить профиль / Delete profile"),
+]
+
+
+GROUP_COMMANDS = [
+    BotCommand(command="rules", description="Правила группы / Group rules"),
+    BotCommand(command="report", description="Пожаловаться / Report"),
+    BotCommand(command="help", description="Помощь / Help"),
+]
+
+
+async def setup_bot_commands(bot: Bot) -> None:
+    """Зарегистрировать меню команд для приватных и групповых чатов."""
+    await bot.set_my_commands(
+        PRIVATE_COMMANDS, scope=BotCommandScopeAllPrivateChats()
+    )
+    await bot.set_my_commands(
+        GROUP_COMMANDS, scope=BotCommandScopeAllGroupChats()
+    )
 
 
 async def main() -> None:
@@ -43,6 +79,11 @@ async def main() -> None:
     try:
         me = await bot.get_me()
         log.info("Бот запущен как @%s (id=%s)", me.username, me.id)
+        try:
+            await setup_bot_commands(bot)
+            log.info("Меню команд зарегистрировано")
+        except Exception as e:
+            log.warning("Не удалось зарегистрировать меню: %s", e)
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         await bot.session.close()

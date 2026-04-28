@@ -9,8 +9,9 @@ from aiogram.types import Message
 from sqlalchemy import func, select
 
 from bot.db.database import get_session
-from bot.db.models import Deal, Feedback, Subscription, User
+from bot.db.models import Deal, Feedback, Subscription, Tag, User, UserTag
 from bot.i18n import normalize_lang, t
+from bot.services import tags as tags_svc
 from bot.services import users
 
 log = logging.getLogger(__name__)
@@ -19,16 +20,24 @@ router = Router(name="profile")
 
 _ROLE_LABELS = {
     "ru": {
-        "handyman": "🔧 Исполнитель",
-        "individual": "🏠 Заказчик (физлицо)",
-        "company": "🏢 Компания-заказчик",
+        "coworker": "🛠 Coworker",
+        "guest": "👀 Гость",
+        "handyman": "🔧 Исполнитель",          # legacy
+        "individual": "🏠 Заказчик (физлицо)",  # legacy
+        "company": "🏢 Компания-заказчик",      # legacy
     },
     "en": {
+        "coworker": "🛠 Coworker",
+        "guest": "👀 Guest",
         "handyman": "🔧 Contractor",
         "individual": "🏠 Individual client",
         "company": "🏢 Company client",
     },
 }
+
+
+def _label_field(tag: Tag, lang: str) -> str:
+    return tag.label_ru if lang == "ru" else tag.label_en
 
 
 async def _build_card(session, user: User, lang: str) -> str:
@@ -48,6 +57,30 @@ async def _build_card(session, user: User, lang: str) -> str:
     )
     rating_str = f"{rating_avg:.1f}" if rating_avg else "—"
 
+    # Теги пользователя
+    rs = await session.execute(
+        select(UserTag, Tag)
+        .join(Tag, Tag.id == UserTag.tag_id)
+        .where(UserTag.user_id == user.id)
+        .order_by(UserTag.is_primary.desc())
+    )
+    rows = list(rs.all())
+    primary_label = "—"
+    secondary_labels: list[str] = []
+    for ut, tag in rows:
+        label = _label_field(tag, lang)
+        if ut.is_primary:
+            primary_label = label
+        else:
+            secondary_labels.append(label)
+    secondary_str = ", ".join(secondary_labels) if secondary_labels else "—"
+
+    # Облако фидбэк-тегов
+    cloud_pairs = await tags_svc.get_feedback_tag_cloud(
+        session, to_user_id=user.id, lang=lang
+    )
+    cloud_str = tags_svc.render_tag_cloud(cloud_pairs)
+
     # Подписка
     sub = await session.scalar(
         select(Subscription)
@@ -61,15 +94,23 @@ async def _build_card(session, user: User, lang: str) -> str:
     else:
         sub_str = t(lang, "profile_no_subscription")
 
+    licensed_badge = (
+        t(lang, "profile_licensed_badge") if user.is_licensed_contractor else ""
+    )
+
     return t(
         lang,
         "profile_card",
         name=user.display_name or user.full_name or "—",
+        licensed_badge=licensed_badge,
         role=role_label,
         area=user.area or "—",
+        primary_tag=primary_label,
+        tags=secondary_str,
         bio=(user.bio or ""),
         rating=rating_str,
         deals=deals_count or 0,
+        cloud=cloud_str,
         subscription=sub_str,
     )
 

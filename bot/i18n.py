@@ -67,32 +67,152 @@ TEXTS: dict[str, dict[str, str]] = {
         "captcha_failed": "Время вышло — кикнул из чата. Зайди снова и пройди проверку.",
 
         # --- Регистрация ---
-        "register_choose_role": "Выбери роль:",
-        "role_handyman": "🔧 Исполнитель (handyman)",
-        "role_individual": "🏠 Заказчик (физлицо)",
-        "role_company": "🏢 Компания-заказчик",
+        "register_choose_role": (
+            "Выбери, как ты будешь участвовать:\n\n"
+            "🛠 <b>Coworker</b> — заполняешь профиль, получаешь предложения, "
+            "можешь публиковать и откликаться.\n"
+            "👀 <b>Гость</b> — только читаешь группу, профиль не нужен."
+        ),
+        "role_coworker": "🛠 Coworker",
+        "role_guest": "👀 Гость",
+        "role_handyman": "🔧 Исполнитель (handyman)",  # legacy
+        "role_individual": "🏠 Заказчик (физлицо)",      # legacy
+        "role_company": "🏢 Компания-заказчик",          # legacy
+        "register_guest_done": (
+            "Окей! Ты в группе как гость.\n"
+            "Когда захочешь профиль — напиши /register снова."
+        ),
         "register_ask_name": "Как тебя зовут? (имя или название компании)",
         "register_ask_area": "В каких районах Bay Area работаешь? (например: SF, Oakland, San Jose)",
-        "register_ask_phone": "Телефон или способ связи (необязательно — пропусти, если не хочешь):",
+        "register_ask_primary_tag": (
+            "Выбери <b>основной вид работ</b> — это твоя ключевая компетенция.\n"
+            "По нему мы будем подбирать самые подходящие проекты."
+        ),
+        "register_ask_more_tags": (
+            "Выбери до 5 дополнительных навыков (всего {limit} тегов на профиль).\n"
+            "Можно тапнуть «✏️ Свой вариант» или «✅ Готово».\n\n"
+            "Выбрано: {selected}/{max}"
+        ),
+        "register_ask_custom_tag": (
+            "Введи свой тег одним сообщением.\n"
+            "От 2 до 30 символов, только буквы (рус/англ), цифры, пробелы и дефисы."
+        ),
+        "register_custom_tag_invalid": (
+            "❌ Тег невалидный. Только буквы, цифры, пробел и дефис, длина 2–30."
+        ),
+        "register_custom_tag_limit": (
+            "Лимит твоих собственных тегов исчерпан ({limit}). "
+            "Выбери из готовых вариантов."
+        ),
+        "register_tag_limit_reached": (
+            "Достигнут лимит {limit} тегов. Нажми «✅ Готово»."
+        ),
+        "register_ask_contact_type": (
+            "📞 На какой контакт прислать <b>срочные предложения</b> по подходящим "
+            "проектам?\n\n"
+            "Без него уведомления приходят только в Telegram — это медленнее.\n"
+            "Заказчики часто уходят к тому, кто ответил первым."
+        ),
+        "contact_type_phone": "📱 Телефон (SMS)",
+        "contact_type_whatsapp": "💬 WhatsApp",
+        "contact_type_email": "✉️ Email",
+        "register_ask_phone": (
+            "Введи 10 цифр без пробелов и знаков.\n"
+            "Пример: <code>2125551234</code>"
+        ),
+        "register_ask_whatsapp": (
+            "Введи WhatsApp-номер: 10 цифр без пробелов.\n"
+            "Пример: <code>2125551234</code>"
+        ),
+        "register_ask_email": (
+            "Введи email одним сообщением.\n"
+            "Пример: <code>name@example.com</code>"
+        ),
+        "register_phone_invalid": "❌ Не похоже на номер. Введи 10 цифр (US).",
+        "register_email_invalid": "❌ Email не прошёл проверку. Попробуй ещё раз.",
         "register_ask_skip": "Пропустить",
         "register_ask_bio": (
-            "Коротко о себе: специализация, опыт, что предлагаешь.\n"
+            "Коротко о себе: опыт, что умеешь, что предлагаешь.\n"
             "Лимит: 500 символов."
         ),
-        "register_done": (
-            "✅ Готово! Профиль сохранён.\n"
-            "Команды: /profile — посмотреть, /post — разместить объявление."
+        "register_ask_licensed": (
+            "У тебя есть лицензия contractor (CSLB / state license)?\n"
+            "Это будет показано в профиле бейджем «Verified»."
         ),
+        "licensed_yes": "✅ Да, есть лицензия",
+        "licensed_no": "❌ Нет",
+        "licensed_skip": "⏭ Пропустить",
+        "register_ask_license_number": (
+            "Введи номер лицензии (необязательно — нажми «Пропустить»)."
+        ),
+        "register_consent_intro": (
+            "📋 Последний шаг — согласие.\n\n"
+            "Без согласия на обработку данных мы не можем сохранить профиль. "
+            "Согласие на уведомления — опционально, но без него мы не сможем "
+            "слать тебе предложения о проектах."
+        ),
+        "consent_data": "☑ Согласен на обработку данных",
+        "consent_data_off": "☐ Согласен на обработку данных",
+        "consent_notif": "☑ Согласен получать уведомления",
+        "consent_notif_off": "☐ Согласен получать уведомления",
+        "consent_finish": "✅ Завершить регистрацию",
+        "consent_data_required": (
+            "Без галки «Согласен на обработку данных» завершить нельзя.\n"
+            "Если не согласен — напиши /cancel."
+        ),
+        "register_canceled": "Регистрация отменена. Можно начать снова через /register.",
+        "register_done": (
+            "✅ Готово! Профиль сохранён.\n\n"
+            "Команды:\n"
+            "/profile — мой профиль\n"
+            "/edit — изменить профиль\n"
+            "/post — разместить объявление\n"
+            "/delete_me — удалить профиль и все данные"
+        ),
+        "register_already_registered": (
+            "У тебя уже есть профиль. Если хочешь перезаписать — нажми «Перезаписать».\n"
+            "Для точечных правок используй /edit."
+        ),
+        "register_overwrite": "🔄 Перезаписать",
+        "register_keep": "Оставить как есть",
+
+        # --- /edit — редактирование профиля ---
+        "edit_menu": "Что хочешь изменить?",
+        "edit_field_name": "✏️ Имя",
+        "edit_field_area": "📍 Район",
+        "edit_field_bio": "📝 О себе",
+        "edit_field_contact": "📞 Контакт",
+        "edit_field_tags": "🏷 Теги",
+        "edit_field_license": "📜 Лицензия",
+        "edit_field_lang": "🌐 Язык",
+        "edit_cancel": "✖ Отмена",
+        "edit_done": "✅ Сохранено.",
+        "edit_not_registered": "Сначала зарегистрируйся: /register",
+
+        # --- /delete_me ---
+        "delete_me_confirm": (
+            "⚠️ Это удалит твой профиль, теги, отклики и подписки.\n"
+            "Сообщения и история останутся — но без привязки к тебе.\n\n"
+            "Подтвердить?"
+        ),
+        "delete_me_yes": "🗑 Да, удалить",
+        "delete_me_no": "Отмена",
+        "delete_me_done": "✅ Профиль удалён. Свяжись снова через /start.",
+        "delete_me_canceled": "Удаление отменено.",
 
         # --- Профиль ---
         "profile_card": (
-            "<b>{name}</b>\n"
+            "<b>{name}</b>{licensed_badge}\n"
             "Роль: {role}\n"
             "Район: {area}\n"
+            "Основной навык: {primary_tag}\n"
+            "Доп. навыки: {tags}\n"
             "{bio}\n\n"
             "⭐ Рейтинг: {rating} ({deals} сделок)\n"
+            "💬 Что говорят: {cloud}\n"
             "{subscription}"
         ),
+        "profile_licensed_badge": " ✅ Verified contractor",
         "profile_no_subscription": "Подписки нет — действуют только базовые функции.",
         "profile_subscription_active": "🟢 Подписка активна до {until}.",
         "profile_not_registered": "Ты ещё не зарегистрирован. Команда: /register",
@@ -237,27 +357,146 @@ TEXTS: dict[str, dict[str, str]] = {
             "DM the bot /register to start using the platform."
         ),
         "captcha_failed": "Time's up — you've been kicked. Rejoin and try again.",
-        "register_choose_role": "Choose your role:",
+        "register_choose_role": (
+            "How do you want to participate?\n\n"
+            "🛠 <b>Coworker</b> — fill profile, get matched to projects, "
+            "post and reply to listings.\n"
+            "👀 <b>Guest</b> — just read the group, no profile."
+        ),
+        "role_coworker": "🛠 Coworker",
+        "role_guest": "👀 Guest",
         "role_handyman": "🔧 Contractor (handyman)",
         "role_individual": "🏠 Individual client",
         "role_company": "🏢 Company client",
+        "register_guest_done": (
+            "Got it! You're in as a guest.\n"
+            "When you want a profile — run /register again."
+        ),
         "register_ask_name": "What's your name? (your name or company name)",
         "register_ask_area": "Which Bay Area locations? (e.g. SF, Oakland, San Jose)",
-        "register_ask_phone": "Phone or contact (optional — skip if you don't want to share):",
+        "register_ask_primary_tag": (
+            "Pick your <b>main work category</b> — your key skill.\n"
+            "We'll match you to the most relevant projects by it."
+        ),
+        "register_ask_more_tags": (
+            "Pick up to 5 additional skills ({limit} tags total per profile).\n"
+            "Tap «✏️ Custom» or «✅ Done» when finished.\n\n"
+            "Selected: {selected}/{max}"
+        ),
+        "register_ask_custom_tag": (
+            "Type your tag in one message.\n"
+            "2 to 30 characters: letters (EN/RU), digits, spaces, hyphens only."
+        ),
+        "register_custom_tag_invalid": (
+            "❌ Invalid tag. Letters, digits, space, hyphen only; length 2–30."
+        ),
+        "register_custom_tag_limit": (
+            "Custom tag limit reached ({limit}). Pick from preset options."
+        ),
+        "register_tag_limit_reached": (
+            "Tag limit reached ({limit}). Tap «✅ Done»."
+        ),
+        "register_ask_contact_type": (
+            "📞 Where should we send <b>urgent project offers</b> matching your "
+            "profile?\n\n"
+            "Without it, alerts go only to Telegram — slower.\n"
+            "Clients often go with whoever replies first."
+        ),
+        "contact_type_phone": "📱 Phone (SMS)",
+        "contact_type_whatsapp": "💬 WhatsApp",
+        "contact_type_email": "✉️ Email",
+        "register_ask_phone": (
+            "Type 10 digits, no spaces or symbols.\n"
+            "Example: <code>2125551234</code>"
+        ),
+        "register_ask_whatsapp": (
+            "WhatsApp number, 10 digits no spaces.\n"
+            "Example: <code>2125551234</code>"
+        ),
+        "register_ask_email": (
+            "Type your email in one message.\n"
+            "Example: <code>name@example.com</code>"
+        ),
+        "register_phone_invalid": "❌ Doesn't look like a phone. Type 10 digits (US).",
+        "register_email_invalid": "❌ Email failed validation. Try again.",
         "register_ask_skip": "Skip",
         "register_ask_bio": "Briefly: specialty, experience, what you offer.\nLimit: 500 chars.",
-        "register_done": (
-            "✅ Done! Profile saved.\n"
-            "Commands: /profile — view, /post — create a listing."
+        "register_ask_licensed": (
+            "Do you have a contractor license (CSLB / state)?\n"
+            "We'll show a Verified badge on your profile."
         ),
+        "licensed_yes": "✅ Yes, I'm licensed",
+        "licensed_no": "❌ No",
+        "licensed_skip": "⏭ Skip",
+        "register_ask_license_number": (
+            "Type your license number (optional — tap Skip)."
+        ),
+        "register_consent_intro": (
+            "📋 Last step — consent.\n\n"
+            "Without data-processing consent we can't save the profile. "
+            "Notification consent is optional, but without it we can't send "
+            "you project offers."
+        ),
+        "consent_data": "☑ I agree to data processing",
+        "consent_data_off": "☐ I agree to data processing",
+        "consent_notif": "☑ I agree to receive notifications",
+        "consent_notif_off": "☐ I agree to receive notifications",
+        "consent_finish": "✅ Finish registration",
+        "consent_data_required": (
+            "Can't finish without «I agree to data processing».\n"
+            "If you disagree — type /cancel."
+        ),
+        "register_canceled": "Registration canceled. Run /register again to retry.",
+        "register_done": (
+            "✅ Done! Profile saved.\n\n"
+            "Commands:\n"
+            "/profile — my profile\n"
+            "/edit — edit profile\n"
+            "/post — post a listing\n"
+            "/delete_me — delete profile and all data"
+        ),
+        "register_already_registered": (
+            "You already have a profile. Tap «Overwrite» to start over.\n"
+            "For small edits use /edit."
+        ),
+        "register_overwrite": "🔄 Overwrite",
+        "register_keep": "Keep as is",
+
+        # --- /edit ---
+        "edit_menu": "What do you want to change?",
+        "edit_field_name": "✏️ Name",
+        "edit_field_area": "📍 Area",
+        "edit_field_bio": "📝 Bio",
+        "edit_field_contact": "📞 Contact",
+        "edit_field_tags": "🏷 Tags",
+        "edit_field_license": "📜 License",
+        "edit_field_lang": "🌐 Language",
+        "edit_cancel": "✖ Cancel",
+        "edit_done": "✅ Saved.",
+        "edit_not_registered": "Register first: /register",
+
+        # --- /delete_me ---
+        "delete_me_confirm": (
+            "⚠️ This deletes your profile, tags, responses, subscriptions.\n"
+            "Messages and history stay — without your link.\n\n"
+            "Confirm?"
+        ),
+        "delete_me_yes": "🗑 Yes, delete",
+        "delete_me_no": "Cancel",
+        "delete_me_done": "✅ Profile deleted. /start to come back.",
+        "delete_me_canceled": "Deletion canceled.",
         "profile_card": (
-            "<b>{name}</b>\n"
+            "<b>{name}</b>{licensed_badge}\n"
             "Role: {role}\n"
             "Area: {area}\n"
+            "Main skill: {primary_tag}\n"
+            "Other skills: {tags}\n"
             "{bio}\n\n"
             "⭐ Rating: {rating} ({deals} deals)\n"
+            "💬 Reviews say: {cloud}\n"
             "{subscription}"
         ),
+        "profile_licensed_badge": " ✅ Verified contractor",
         "profile_no_subscription": "No subscription — basic features only.",
         "profile_subscription_active": "🟢 Subscription active until {until}.",
         "profile_not_registered": "You haven't registered yet. Use /register",

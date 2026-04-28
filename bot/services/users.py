@@ -128,7 +128,7 @@ async def save_registration(
     phone: str | None,
     bio: str | None,
 ) -> User | None:
-    """Записать поля регистрации в существующего пользователя."""
+    """Legacy save_registration v1 — для обратной совместимости тестов."""
     user = await get_user(session, tg_id)
     if user is None:
         return None
@@ -140,6 +140,85 @@ async def save_registration(
     user.registered_at = datetime.now(timezone.utc)
     await session.commit()
     return user
+
+
+async def save_registration_v2(
+    session: AsyncSession,
+    tg_id: int,
+    *,
+    role: str,                      # 'coworker' | 'guest'
+    display_name: str | None = None,
+    area: str | None = None,
+    bio: str | None = None,
+    contact_phone: str | None = None,       # E.164
+    contact_whatsapp: str | None = None,    # E.164
+    contact_email: str | None = None,
+    is_licensed_contractor: bool = False,
+    license_number: str | None = None,
+    consent_data: bool = False,
+    consent_notifications: bool = False,
+) -> User | None:
+    """Сохранить v2-регистрацию. consent_data обязателен для role=coworker."""
+    user = await get_user(session, tg_id)
+    if user is None:
+        return None
+    if role == "coworker" and not consent_data:
+        # без согласия не сохраняем профиль
+        return None
+    now = datetime.now(timezone.utc)
+    user.role = role
+    user.display_name = display_name
+    user.area = area
+    user.bio = bio
+    user.contact_phone = contact_phone
+    user.contact_whatsapp = contact_whatsapp
+    user.contact_email = contact_email
+    user.is_licensed_contractor = is_licensed_contractor
+    user.license_number = license_number
+    user.consent_data = consent_data
+    user.consent_notifications = consent_notifications
+    if consent_data:
+        user.consent_at = now
+    user.registered_at = now
+    await session.commit()
+    return user
+
+
+async def update_profile_field(
+    session: AsyncSession,
+    tg_id: int,
+    field: str,
+    value,
+) -> bool:
+    """Точечный update одного поля для /edit. Безопасно — whitelist полей."""
+    ALLOWED = {
+        "display_name",
+        "area",
+        "bio",
+        "contact_phone",
+        "contact_whatsapp",
+        "contact_email",
+        "is_licensed_contractor",
+        "license_number",
+        "language",
+    }
+    if field not in ALLOWED:
+        return False
+    rs = await session.execute(
+        update(User).where(User.tg_id == tg_id).values({field: value})
+    )
+    await session.commit()
+    return rs.rowcount > 0
+
+
+async def delete_user(session: AsyncSession, tg_id: int) -> bool:
+    """Полное удаление пользователя (каскадно: tags, listings, subscriptions)."""
+    user = await get_user(session, tg_id)
+    if user is None:
+        return False
+    await session.delete(user)
+    await session.commit()
+    return True
 
 
 async def list_users_for_broadcast(

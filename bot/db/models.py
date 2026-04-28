@@ -55,13 +55,35 @@ class User(Base):
     # Маркетплейс-поля (заполняются через /register)
     language: Mapped[str] = mapped_column(String(8), default="ru")
     role: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    # roles: handyman | individual | company | None
+    # roles: coworker | guest | None (legacy: handyman/individual/company)
     display_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     area: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # legacy phone (оставляем для обратной совместимости)
     phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     registered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+    # v2: контакты (раздельно)
+    contact_phone: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    contact_whatsapp: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    contact_email: Mapped[str | None] = mapped_column(String(254), nullable=True)
+
+    # v2: согласия (GDPR/CCPA)
+    consent_data: Mapped[bool] = mapped_column(Boolean, default=False)
+    consent_notifications: Mapped[bool] = mapped_column(Boolean, default=False)
+    consent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # v2: лицензия contractor
+    is_licensed_contractor: Mapped[bool] = mapped_column(Boolean, default=False)
+    license_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    # v2: основной (primary) тег — ключевая компетенция
+    primary_tag_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tags.id", ondelete="SET NULL"), nullable=True
     )
 
     messages: Mapped[list["Message"]] = relationship(
@@ -75,6 +97,12 @@ class User(Base):
     )
     subscriptions: Mapped[list["Subscription"]] = relationship(
         "Subscription", back_populates="user", cascade="all, delete-orphan"
+    )
+    user_tags: Mapped[list["UserTag"]] = relationship(
+        "UserTag", back_populates="user", cascade="all, delete-orphan"
+    )
+    primary_tag: Mapped["Tag | None"] = relationship(
+        "Tag", foreign_keys=[primary_tag_id]
     )
 
 
@@ -121,6 +149,41 @@ class Tag(Base):
     label_en: Mapped[str] = mapped_column(String(128))
     category: Mapped[str] = mapped_column(String(32), default="skill")
     # category: skill | location | feedback_pos | feedback_neg
+
+    # v2: пользовательские теги — модерация
+    is_predefined: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_approved: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+    usages_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class UserTag(Base):
+    """M2M User↔Tag — навыки/виды работ пользователя (до 6, включая primary)."""
+
+    __tablename__ = "user_tags"
+    __table_args__ = (
+        UniqueConstraint("user_id", "tag_id", name="uix_user_tag"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    tag_id: Mapped[int] = mapped_column(
+        ForeignKey("tags.id", ondelete="CASCADE"), index=True
+    )
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="user_tags")
+    tag: Mapped["Tag"] = relationship("Tag")
 
 
 class Listing(Base):

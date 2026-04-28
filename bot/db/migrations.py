@@ -25,6 +25,24 @@ _USER_COLUMNS: list[tuple[str, str, str]] = [
     ("users", "phone", "VARCHAR(64)"),
     ("users", "bio", "TEXT"),
     ("users", "registered_at", "TIMESTAMP WITH TIME ZONE"),
+    # v2 регистрации
+    ("users", "contact_phone", "VARCHAR(16)"),
+    ("users", "contact_whatsapp", "VARCHAR(16)"),
+    ("users", "contact_email", "VARCHAR(254)"),
+    ("users", "consent_data", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("users", "consent_notifications", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("users", "consent_at", "TIMESTAMP WITH TIME ZONE"),
+    ("users", "is_licensed_contractor", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("users", "license_number", "VARCHAR(64)"),
+    ("users", "primary_tag_id", "INTEGER"),
+]
+
+_TAG_COLUMNS: list[tuple[str, str, str]] = [
+    ("tags", "is_predefined", "BOOLEAN NOT NULL DEFAULT TRUE"),
+    ("tags", "is_approved", "BOOLEAN NOT NULL DEFAULT TRUE"),
+    ("tags", "created_by_user_id", "INTEGER"),
+    ("tags", "created_at", "TIMESTAMP WITH TIME ZONE"),
+    ("tags", "usages_count", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 
@@ -60,9 +78,67 @@ async def _ensure_columns(conn, columns: Iterable[tuple[str, str, str]]) -> None
         seen_cache[table].add(column)
 
 
+async def _ensure_table(conn, table: str, create_sql: str) -> None:
+    """Создать таблицу, если её нет (idempotent для PG/SQLite)."""
+    dialect = conn.dialect.name
+    if dialect == "postgresql":
+        rs = await conn.execute(
+            text("SELECT to_regclass(:t) IS NOT NULL"),
+            {"t": f"public.{table}"},
+        )
+        exists = bool(rs.scalar())
+    elif dialect == "sqlite":
+        rs = await conn.execute(
+            text(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=:t"
+            ),
+            {"t": table},
+        )
+        exists = rs.first() is not None
+    else:
+        log.warning("Неизвестный диалект %s — пропускаю create %s", dialect, table)
+        return
+    if not exists:
+        log.info("MIGRATION: CREATE TABLE %s", table)
+        await conn.execute(text(create_sql))
+
+
+_USER_TAGS_DDL_PG = """
+CREATE TABLE user_tags (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT uix_user_tag UNIQUE (user_id, tag_id)
+)
+""".strip()
+
+_USER_TAGS_DDL_SQLITE = """
+CREATE TABLE user_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    is_primary BOOLEAN NOT NULL DEFAULT 0,
+    created_at TIMESTAMP,
+    UNIQUE (user_id, tag_id)
+)
+""".strip()
+
+
 async def run_migrations(engine: AsyncEngine) -> None:
     """Прогнать все idempotent миграции. Безопасно вызывать на каждом старте."""
     async with engine.begin() as conn:
         # 1. Колонки в users (могут отсутствовать в проде)
         await _ensure_columns(conn, _USER_COLUMNS)
+        # 2. Колонки в tags (v2 — модерация custom тегов)
+        await _ensure_columns(conn, _TAG_COLUMNS)
+        # 3. Таблица user_tags (v2). create_all создаст её на свежей БД,
+        #    но в проде где tags уже есть — нужно явно.
+        ddl = (
+            _USER_TAGS_DDL_PG
+            if conn.dialect.name == "postgresql"
+            else _USER_TAGS_DDL_SQLITE
+        )
+        await _ensure_table(conn, "user_tags", ddl)
     log.info("Миграции применены")
