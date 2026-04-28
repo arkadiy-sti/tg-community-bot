@@ -4,12 +4,16 @@
 - skill — навыки/виды работ (используются в Listing и Profile)
 - location — районы Bay Area (используются в Listing)
 - feedback_pos / feedback_neg — теги отзывов (используются в Feedback)
+
+Сид является источником правды для is_predefined=True тегов: на каждом
+рестарте лейблы синхронизируются (можно менять текст в TAGS — БД догонит).
+Custom-теги (is_predefined=False) seed не трогает.
 """
 from __future__ import annotations
 
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 log = logging.getLogger(__name__)
@@ -22,7 +26,10 @@ TAGS: list[tuple[str, str, str, str]] = [
     ("electrical", "skill", "Электрика", "Electrical"),
     ("painting", "skill", "Покраска", "Painting"),
     ("drywall", "skill", "Гипсокартон / drywall", "Drywall"),
-    ("flooring", "skill", "Полы / напольные покрытия", "Flooring"),
+    # Полы — раскладываем на конкретные типы покрытий (плитка отдельно ниже)
+    ("hardwood", "skill", "Хардвуд", "Hardwood"),
+    ("vinyl_flooring", "skill", "Виниловые полы", "Vinyl flooring"),
+    ("linoleum_carpet", "skill", "Линолеум / ковролин", "Linoleum / carpet"),
     ("tiling", "skill", "Плитка", "Tiling"),
     ("carpentry", "skill", "Столярные работы", "Carpentry"),
     ("framing", "skill", "Каркасные работы", "Framing"),
@@ -31,7 +38,7 @@ TAGS: list[tuple[str, str, str, str]] = [
     ("foundation", "skill", "Фундамент", "Foundation"),
     ("concrete", "skill", "Бетон / заливка", "Concrete"),
     ("masonry", "skill", "Каменные работы", "Masonry"),
-    ("hvac", "skill", "Отопление и вентиляция (HVAC)", "HVAC"),
+    ("hvac", "skill", "HVAC", "HVAC"),
     ("appliance_repair", "skill", "Ремонт техники", "Appliance Repair"),
     ("kitchen_remodel", "skill", "Ремонт кухни", "Kitchen Remodel"),
     ("bathroom_remodel", "skill", "Ремонт ванной", "Bathroom Remodel"),
@@ -43,13 +50,13 @@ TAGS: list[tuple[str, str, str, str]] = [
     ("tree_service", "skill", "Деревья / спил", "Tree Service"),
     ("cleaning", "skill", "Уборка / клининг", "Cleaning"),
     ("moving", "skill", "Переезды / грузчики", "Moving"),
-    ("handyman_general", "skill", "Мелкий ремонт (handyman)", "General Handyman"),
+    ("handyman_general", "skill", "Handyman", "Handyman"),
     ("solar", "skill", "Солнечные панели", "Solar"),
     ("smart_home", "skill", "Умный дом", "Smart Home"),
     ("locksmith", "skill", "Замки / locksmith", "Locksmith"),
     ("welding", "skill", "Сварка", "Welding"),
     ("design", "skill", "Дизайн / planning", "Design / Planning"),
-    ("permits", "skill", "Пермиты / документы", "Permits"),
+    ("permits", "skill", "Пермиты", "Permits"),
     # === Районы Bay Area ===
     ("loc_sf", "location", "Сан-Франциско (SF)", "San Francisco"),
     ("loc_oakland", "location", "Окленд", "Oakland"),
@@ -83,25 +90,86 @@ TAGS: list[tuple[str, str, str, str]] = [
 ]
 
 
+# Slug-и тегов, которые мы выводим из эксплуатации.
+# Если на устаревший тег нет user_tags-связей и primary_tag_id — он будет удалён.
+# Если есть — оставляем и логируем warning, чтобы админ решил вручную.
+OBSOLETE_SLUGS: list[str] = [
+    "flooring",  # заменён на hardwood/vinyl_flooring/linoleum_carpet/tiling
+]
+
+
 async def seed_tags(engine: AsyncEngine) -> None:
-    """Создаёт недостающие теги в БД (idempotent по slug)."""
-    from bot.db.models import Tag  # late import: модели подключаются в init_db
+    """Sync справочника тегов с БД.
+
+    1. INSERT недостающих slug-ов из TAGS.
+    2. UPDATE label_ru/label_en/category для предустановленных slug-ов,
+       если они отличаются от seed (custom-теги не трогаем).
+    3. DELETE устаревших slug-ов из OBSOLETE_SLUGS, если на них нет ссылок.
+    """
+    from bot.db.models import Tag, UserTag, User  # late import
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as session:  # type: AsyncSession
-        existing = await session.execute(select(Tag.slug))
-        existing_slugs = {row[0] for row in existing}
+        result = await session.execute(select(Tag))
+        existing_by_slug: dict[str, Tag] = {t.slug: t for t in result.scalars().all()}
 
         added = 0
+        updated = 0
         for slug, category, ru, en in TAGS:
-            if slug in existing_slugs:
+            tag = existing_by_slug.get(slug)
+            if tag is None:
+                session.add(Tag(
+                    slug=slug,
+                    category=category,
+                    label_ru=ru,
+                    label_en=en,
+                    is_predefined=True,
+                    is_approved=True,
+                ))
+                added += 1
                 continue
-            session.add(
-                Tag(slug=slug, category=category, label_ru=ru, label_en=en)
-            )
-            added += 1
-        if added:
+            # Не трогаем custom-теги, даже если slug случайно совпал.
+            if not tag.is_predefined:
+                continue
+            if (tag.label_ru != ru) or (tag.label_en != en) or (tag.category != category):
+                tag.label_ru = ru
+                tag.label_en = en
+                tag.category = category
+                updated += 1
+
+        # Безопасное удаление устаревших тегов
+        deleted = 0
+        kept_with_warning = 0
+        for slug in OBSOLETE_SLUGS:
+            tag = existing_by_slug.get(slug)
+            if tag is None:
+                continue
+            n_user_tags = await session.scalar(
+                select(func.count())
+                .select_from(UserTag)
+                .where(UserTag.tag_id == tag.id)
+            ) or 0
+            n_primary = await session.scalar(
+                select(func.count())
+                .select_from(User)
+                .where(User.primary_tag_id == tag.id)
+            ) or 0
+            if n_user_tags > 0 or n_primary > 0:
+                log.warning(
+                    "Устаревший тег %s имеет ссылки (user_tags=%d, primary=%d) — оставляю",
+                    slug, n_user_tags, n_primary,
+                )
+                kept_with_warning += 1
+                continue
+            await session.delete(tag)
+            deleted += 1
+            log.info("Удалён устаревший тег: %s", slug)
+
+        if added or updated or deleted:
             await session.commit()
-            log.info("Залито новых тегов: %d (всего в словаре %d)", added, len(TAGS))
+            log.info(
+                "Tags sync: added=%d, updated=%d, deleted=%d, kept_obsolete=%d, total_in_seed=%d",
+                added, updated, deleted, kept_with_warning, len(TAGS),
+            )
         else:
             log.debug("Теги уже на месте — словарь насчитывает %d записей", len(TAGS))
