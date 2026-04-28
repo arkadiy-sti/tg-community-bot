@@ -105,3 +105,63 @@ async def test_delete_user(session) -> None:
 async def test_delete_user_unknown(session) -> None:
     ok = await users.delete_user(session, 999999)
     assert ok is False
+
+
+# ---------------------------------------------------------------------------
+# /check gate — только coworker может смотреть профили
+# ---------------------------------------------------------------------------
+
+
+def test_can_view_profiles_unregistered() -> None:
+    from bot.handlers.profile import _can_view_profiles
+    assert _can_view_profiles(None) is False
+
+
+@pytest.mark.asyncio
+async def test_can_view_profiles_guest_blocked(session) -> None:
+    from bot.handlers.profile import _can_view_profiles
+
+    await users.upsert_user(session, tg_id=100, username=None, full_name="G")
+    await users.save_registration_v2(
+        session, tg_id=100, role="guest", consent_data=False
+    )
+    u = await users.get_user(session, 100)
+    assert u is not None
+    assert _can_view_profiles(u) is False
+
+
+@pytest.mark.asyncio
+async def test_can_view_profiles_coworker_allowed(session) -> None:
+    from bot.handlers.profile import _can_view_profiles
+
+    await users.upsert_user(session, tg_id=101, username=None, full_name="C")
+    await users.save_registration_v2(
+        session,
+        tg_id=101,
+        role="coworker",
+        display_name="C",
+        consent_data=True,
+    )
+    u = await users.get_user(session, 101)
+    assert u is not None
+    assert _can_view_profiles(u) is True
+
+
+@pytest.mark.asyncio
+async def test_can_view_profiles_legacy_roles(session) -> None:
+    """Legacy-роли (handyman/individual/company) тоже допускаются — обратная совместимость."""
+    from bot.handlers.profile import _can_view_profiles
+
+    for tg_id, role in [(200, "handyman"), (201, "individual"), (202, "company")]:
+        await users.upsert_user(session, tg_id=tg_id, username=None, full_name="X")
+        await users.save_registration(
+            session,
+            tg_id=tg_id,
+            role=role,
+            display_name="X",
+            area=None,
+            phone=None,
+            bio=None,
+        )
+        u = await users.get_user(session, tg_id)
+        assert _can_view_profiles(u) is True, f"legacy role {role} should be allowed"
