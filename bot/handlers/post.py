@@ -41,6 +41,7 @@ class PostStates(StatesGroup):
     kind = State()
     locations = State()
     skills = State()
+    skill_custom_input = State()
     num_people = State()        # offer
     engagement = State()        # seek
     helper_kind = State()       # offer
@@ -79,6 +80,7 @@ def _kb_tag_grid(
     *,
     selected: set[int],
     show_done: bool = True,
+    show_custom: bool = False,
     cb_prefix: str = "p:t",
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
@@ -96,6 +98,11 @@ def _kb_tag_grid(
     if line:
         rows.append(line)
     bottom: list[InlineKeyboardButton] = []
+    if show_custom:
+        bottom.append(InlineKeyboardButton(
+            text="✏️ Свой вариант" if lang == "ru" else "✏️ Custom",
+            callback_data=f"{cb_prefix}:custom",
+        ))
     if show_done:
         bottom.append(InlineKeyboardButton(
             text=t(lang, "post_done") + f" ({len(selected)})",
@@ -285,7 +292,8 @@ async def _send_skills_step(message: Message, state: FSMContext, lang: str) -> N
         limit=listings_svc.MAX_SKILL_TAGS, selected=len(selected),
     )
     kb = _kb_tag_grid(
-        skill_tags, lang, selected=selected, show_done=True, cb_prefix="p:s"
+        skill_tags, lang, selected=selected,
+        show_done=True, show_custom=True, cb_prefix="p:s",
     )
     await state.set_state(PostStates.skills)
     await message.answer(text, reply_markup=kb)
@@ -420,7 +428,7 @@ async def _go_to_preview(
         # для preview подменим, собрав текст вручную.
     text = await _render_preview(data, u, loaded_tags, lang)
     await state.set_state(PostStates.preview)
-    await message.answer(
+    await target_message.answer(
         t(lang, "post_preview_title") + "\n\n" + text,
         reply_markup=_kb_preview(lang),
     )
@@ -618,7 +626,7 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.skills, F.data.startswith("p:s:"))
 async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
-    if callback.data is None:
+    if callback.data is None or callback.from_user is None:
         return
     payload = callback.data.split(":", 2)[2]
     data = await state.get_data()
@@ -635,6 +643,28 @@ async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
             except Exception:
                 pass
             await _go_after_skills(callback.message, state, lang)
+        await callback.answer()
+        return
+
+    if payload == "custom":
+        # Свой вариант — спрашиваем ввод
+        from bot.services import tags as tags_svc
+        async with get_session() as session:
+            u = await users.get_user(session, callback.from_user.id)
+            used = (
+                await tags_svc.count_custom_tags_by_user(session, u.id)
+                if u else 0
+            )
+        if used >= tags_svc.CUSTOM_TAG_LIMIT_PER_USER:
+            await callback.answer(
+                t(lang, "register_custom_tag_limit",
+                  limit=tags_svc.CUSTOM_TAG_LIMIT_PER_USER),
+                show_alert=True,
+            )
+            return
+        await state.set_state(PostStates.skill_custom_input)
+        if callback.message:
+            await callback.message.answer(t(lang, "register_ask_custom_tag"))
         await callback.answer()
         return
 
@@ -662,11 +692,46 @@ async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
                 t(lang, "post_ask_skills",
                   limit=listings_svc.MAX_SKILL_TAGS, selected=len(s)),
                 reply_markup=_kb_tag_grid(skill_tags, lang, selected=s,
-                                           show_done=True, cb_prefix="p:s"),
+                                           show_done=True, show_custom=True,
+                                           cb_prefix="p:s"),
             )
         except Exception:
             pass
     await callback.answer()
+
+
+@router.message(PostStates.skill_custom_input)
+async def step_skill_custom(message: Message, state: FSMContext) -> None:
+    if not message.text or message.from_user is None:
+        return
+    from bot.services import tags as tags_svc
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    label = tags_svc.normalize_custom_tag(message.text)
+    if label is None:
+        await message.answer(t(lang, "register_custom_tag_invalid"))
+        return
+    async with get_session() as session:
+        u = await users.get_user(session, message.from_user.id)
+        if u is None:
+            await state.clear()
+            return
+        tag = await tags_svc.create_custom_tag(
+            session, raw_label=label, category="skill",
+            created_by_user_id=u.id,
+        )
+    if tag is None:
+        await message.answer(
+            t(lang, "register_custom_tag_limit",
+              limit=tags_svc.CUSTOM_TAG_LIMIT_PER_USER)
+        )
+        await _send_skills_step(message, state, lang)
+        return
+    selected = list(data.get("skill_ids", []))
+    if tag.id not in selected and len(selected) < listings_svc.MAX_SKILL_TAGS:
+        selected.append(tag.id)
+    await state.update_data(skill_ids=selected)
+    await _send_skills_step(message, state, lang)
 
 
 # ---------------------------------------------------------------------------

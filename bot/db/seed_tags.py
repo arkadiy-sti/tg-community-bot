@@ -57,21 +57,13 @@ TAGS: list[tuple[str, str, str, str]] = [
     ("welding", "skill", "Сварка", "Welding"),
     ("design", "skill", "Дизайн", "Design"),
     ("permits", "skill", "Пермиты", "Permits"),
-    # === Районы Bay Area ===
+    # === Районы (крупные регионы; конкретный адрес/ZIP — в описание) ===
     ("loc_sf", "location", "SF", "San Francisco"),
-    ("loc_oakland", "location", "Окленд", "Oakland"),
-    ("loc_berkeley", "location", "Беркли", "Berkeley"),
-    ("loc_san_jose", "location", "Сан-Хосе", "San Jose"),
-    ("loc_palo_alto", "location", "Пало-Альто", "Palo Alto"),
-    ("loc_mountain_view", "location", "Маунтин-Вью", "Mountain View"),
-    ("loc_fremont", "location", "Фримонт", "Fremont"),
-    ("loc_hayward", "location", "Хейворд", "Hayward"),
-    ("loc_daly_city", "location", "Дейли-Сити", "Daly City"),
-    ("loc_marin", "location", "Марин", "Marin"),
-    ("loc_napa", "location", "Напа", "Napa"),
-    ("loc_peninsula", "location", "Peninsula", "Peninsula"),
+    ("loc_san_jose", "location", "San Jose", "San Jose"),
+    ("loc_sacramento", "location", "Sacramento", "Sacramento"),
     ("loc_east_bay", "location", "East Bay", "East Bay"),
     ("loc_south_bay", "location", "South Bay", "South Bay"),
+    ("loc_peninsula", "location", "Peninsula", "Peninsula"),
     ("loc_north_bay", "location", "North Bay", "North Bay"),
     # === Теги отзывов: положительные ===
     ("fb_punctual", "feedback_pos", "Пунктуальный", "Punctual"),
@@ -95,6 +87,17 @@ TAGS: list[tuple[str, str, str, str]] = [
 # Если есть — оставляем и логируем warning, чтобы админ решил вручную.
 OBSOLETE_SLUGS: list[str] = [
     "flooring",  # заменён на hardwood/vinyl_flooring/linoleum_carpet/tiling
+    # Конкретные города — теперь покрываются регионами East Bay / Peninsula / etc.
+    # Точный адрес/ZIP — пишем в описание объявления.
+    "loc_oakland",
+    "loc_berkeley",
+    "loc_palo_alto",
+    "loc_mountain_view",
+    "loc_fremont",
+    "loc_hayward",
+    "loc_daly_city",
+    "loc_marin",
+    "loc_napa",
 ]
 
 
