@@ -352,7 +352,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "post_urgency_this_week": "📅 На этой неделе",
         "post_urgency_this_month": "🗓 В этом месяце",
         "post_urgency_flexible": "⏳ Не горит",
-        "post_budget_under_500": "<$500",
+        "post_budget_under_500": "до $500",
         "post_budget_500_2k": "$500–2K",
         "post_budget_2k_10k": "$2K–10K",
         "post_budget_over_10k": "$10K+",

@@ -8,6 +8,7 @@ language → duration → urgency → budget → description → photos → cont
 """
 from __future__ import annotations
 
+import html
 import logging
 
 from aiogram import F, Router
@@ -476,7 +477,7 @@ async def _render_preview_safe(
     loc_parts = [tg.label_ru if lang == "ru" else tg.label_en for tg in locs]
     custom_loc = data.get("location_freetext")
     if custom_loc:
-        loc_parts.append(custom_loc)
+        loc_parts.append(html.escape(custom_loc))
     loc_str = ", ".join(loc_parts) or "—"
     skill_str = ", ".join(
         tg.label_ru if lang == "ru" else tg.label_en for tg in skills
@@ -537,14 +538,14 @@ async def _render_preview_safe(
         f"<b>{listings_svc.label(listings_svc.URGENCY_LABELS, lang, data.get('urgency'))}</b>"
     )
     parts.append("")
-    parts.append(data.get("description") or "—")
+    parts.append(html.escape(data.get("description") or "—"))
 
-    contact = (
+    contact_raw = (
         data.get("contact_override")
         or _default_contact_from_snapshot(user_snapshot)
     )
     parts.append("")
-    parts.append(f"📞 Контакт: {contact}")
+    parts.append(f"📞 Контакт: {html.escape(contact_raw)}")
 
     photos = data.get("photo_ids", [])
     if photos:
