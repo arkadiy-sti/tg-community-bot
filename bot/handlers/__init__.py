@@ -1,6 +1,9 @@
 from aiogram import Router
 
-from bot.handlers import admin, broadcast, common, edit, post, profile, register, welcome
+from bot.handlers import (
+    admin, broadcast, common, edit, post, post_moderation, profile,
+    register, welcome,
+)
 
 
 def get_main_router() -> Router:
@@ -14,6 +17,7 @@ def get_main_router() -> Router:
     root.include_router(register.router)
     root.include_router(edit.router)
     root.include_router(post.router)
+    root.include_router(post_moderation.router)
     root.include_router(profile.router)
     root.include_router(admin.router)
     root.include_router(broadcast.router)

@@ -318,9 +318,46 @@ TEXTS: dict[str, dict[str, str]] = {
         "post_back": "← Назад",
         "post_done": "✅ Готово",
         "post_sent": (
-            "✅ Объявление отправлено на модерацию.\n"
-            "Я напишу когда модератор проверит — обычно в течение суток."
+            "✅ Готово! Отправил админу на модерацию — это не займёт много времени, "
+            "скоро вернусь с публикацией. 📨"
         ),
+        "post_approved_user": (
+            "🎉 Твоё объявление опубликовано в группе <b>Co-Workers Bay Area</b>!\n\n"
+            "Когда кто-то откликнется — я тебе сразу напишу."
+        ),
+        "post_rejected_user_with_reason": (
+            "❌ Твоё объявление отклонено модератором.\n\n"
+            "Причина: <i>{reason}</i>\n\n"
+            "Ты можешь поправить и опубликовать снова через /post."
+        ),
+        "post_response_to_author": (
+            "📩 На твоё объявление откликнулся <b>{responder}</b>.\n\n"
+            "Контакт: {contact}\n\n"
+            "Свяжись с ним напрямую — Telegram-бот посредником не работает."
+        ),
+        "post_response_acked": (
+            "✅ Твой отклик отправлен автору. Если он на связи — скоро ответит."
+        ),
+        # Модерация — для админов
+        "mod_new_listing": (
+            "🆕 <b>Новое объявление #LST-{id}</b> на модерацию\n\n"
+            "От: {author}\n\n"
+            "{body}"
+        ),
+        "mod_btn_approve": "✅ Опубликовать",
+        "mod_btn_reject": "❌ Отклонить",
+        "mod_already_handled": "Уже обработано: <b>{status}</b> модератором {who}.",
+        "mod_ask_reject_reason": (
+            "Введи причину отказа одним сообщением (≤ 200 символов).\n"
+            "Эта причина будет показана автору."
+        ),
+        "mod_done_approved": "✅ Опубликовано в группу.",
+        "mod_done_rejected": "❌ Отклонено. Автор уведомлён.",
+        "mod_no_group_chat": (
+            "⚠️ GROUP_CHAT_ID не настроен в .env — публикация в группу пропущена. "
+            "Объявление помечено как approved, но в группу не отправлено."
+        ),
+        "post_respond_btn": "📩 Откликнуться",
         "post_canceled": "Создание объявления отменено.",
         "post_too_long": "Слишком длинно ({n} символов, лимит {max}).",
         "post_need_locations": "Выбери хотя бы один район.",
@@ -686,7 +723,46 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "post_send": "📨 Send for moderation",
         "post_cancel": "✖ Cancel",
-        "post_sent": "✅ Sent for moderation. I'll DM you when reviewed.",
+        "post_sent": (
+            "✅ Done! Sent to admin for moderation — won't take long, "
+            "I'll be back with the publication soon. 📨"
+        ),
+        "post_approved_user": (
+            "🎉 Your listing is published in <b>Co-Workers Bay Area</b>!\n\n"
+            "I'll DM you the moment someone responds."
+        ),
+        "post_rejected_user_with_reason": (
+            "❌ Your listing was rejected by a moderator.\n\n"
+            "Reason: <i>{reason}</i>\n\n"
+            "You can fix and resubmit via /post."
+        ),
+        "post_response_to_author": (
+            "📩 <b>{responder}</b> responded to your listing.\n\n"
+            "Contact: {contact}\n\n"
+            "Reach out directly — the bot doesn't relay messages."
+        ),
+        "post_response_acked": (
+            "✅ Your response sent to the author. If they're around — they'll be in touch."
+        ),
+        "mod_new_listing": (
+            "🆕 <b>New listing #LST-{id}</b> for moderation\n\n"
+            "From: {author}\n\n"
+            "{body}"
+        ),
+        "mod_btn_approve": "✅ Publish",
+        "mod_btn_reject": "❌ Reject",
+        "mod_already_handled": "Already handled: <b>{status}</b> by {who}.",
+        "mod_ask_reject_reason": (
+            "Type rejection reason in one message (≤ 200 chars).\n"
+            "This will be shown to the author."
+        ),
+        "mod_done_approved": "✅ Published to group.",
+        "mod_done_rejected": "❌ Rejected. Author notified.",
+        "mod_no_group_chat": (
+            "⚠️ GROUP_CHAT_ID not configured in .env — group publication skipped. "
+            "Listing marked as approved but not sent to the group."
+        ),
+        "post_respond_btn": "📩 Respond",
         "post_canceled": "Canceled.",
         "post_approved_user": "✅ Your listing has been published.",
         "post_rejected_user": "❌ Listing rejected by moderator.\nReason: {reason}",

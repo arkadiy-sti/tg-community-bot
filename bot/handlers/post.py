@@ -1237,3 +1237,17 @@ async def cb_submit(callback: CallbackQuery, state: FSMContext) -> None:
         except Exception:
             await callback.message.answer(t(lang, "post_sent"))
     await callback.answer()
+
+    # Уведомляем модераторов в DM. Делаем это после ответа автору,
+    # чтобы UI не подвисал на ошибке отправки.
+    if callback.bot:
+        try:
+            from bot.handlers.post_moderation import (
+                notify_moderators_for_listing,
+            )
+            await notify_moderators_for_listing(callback.bot, listing.id)
+        except Exception as e:
+            log.exception(
+                "notify_moderators_for_listing failed for id=%s: %s",
+                listing.id, e,
+            )
