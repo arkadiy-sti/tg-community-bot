@@ -397,52 +397,78 @@ async def _go_to_preview(
     target_message: Message, state: FSMContext, lang: str, *, tg_id: int
 ) -> None:
     """Показать preview. tg_id явно — см. комментарий выше."""
-    data = await state.get_data()
-    async with get_session() as session:
-        u = await users.get_user(session, tg_id)
-        if u is None:
-            await state.clear()
-            return
-        # Делаем псевдо-Listing для рендера превью без записи в БД
-        from bot.db.models import Listing as ListingModel
-        preview = ListingModel(
-            user_id=u.id,
-            kind=data.get("kind", "offer"),
-            text=data.get("description", ""),
-            num_people=data.get("num_people"),
-            engagement_kind=data.get("engagement_kind"),
-            helper_kind=data.get("helper_kind"),
-            language_req=data.get("language_req"),
-            duration=data.get("duration"),
-            urgency=data.get("urgency"),
-            budget=data.get("budget"),
-            contact_override=data.get("contact_override"),
+    log.info("_go_to_preview ENTER tg_id=%s", tg_id)
+    try:
+        data = await state.get_data()
+        log.info("_go_to_preview state=%s", {k: v for k, v in data.items() if k != "photo_ids"})
+        async with get_session() as session:
+            u = await users.get_user(session, tg_id)
+            if u is None:
+                log.warning("_go_to_preview: user not found tg_id=%s", tg_id)
+                await state.clear()
+                await target_message.answer(
+                    "⚠️ Не нашёл твой профиль. Запусти /start и попробуй снова."
+                )
+                return
+            # Подгружаем теги для preview-рендера
+            from sqlalchemy import select
+            ids = (list(data.get("location_ids", []))
+                   + list(data.get("skill_ids", [])))
+            if ids:
+                rs = await session.execute(select(Tag).where(Tag.id.in_(ids)))
+                loaded_tags = list(rs.scalars().all())
+            else:
+                loaded_tags = []
+            # Эксплицитно «вытащим» поля юзера, пока сессия открыта,
+            # чтобы DetachedInstanceError не возник при render-е.
+            user_snapshot = {
+                "id": u.id,
+                "display_name": u.display_name,
+                "full_name": u.full_name,
+                "username": u.username,
+                "contact_phone": u.contact_phone,
+                "contact_whatsapp": u.contact_whatsapp,
+                "contact_email": u.contact_email,
+            }
+        log.info("_go_to_preview tags_loaded=%d", len(loaded_tags))
+        text_body = await _render_preview_safe(
+            data, user_snapshot, loaded_tags, lang
         )
-        preview.id = 0
-        preview.author = u
-        # Подгружаем теги вручную из IDs
-        from sqlalchemy import select
-        rs = await session.execute(
-            select(Tag).where(
-                Tag.id.in_(list(data.get("location_ids", []))
-                           + list(data.get("skill_ids", [])))
+        await state.set_state(PostStates.preview)
+        await target_message.answer(
+            t(lang, "post_preview_title") + "\n\n" + text_body,
+            reply_markup=_kb_preview(lang),
+        )
+        log.info("_go_to_preview OK tg_id=%s", tg_id)
+    except Exception as e:
+        log.exception("_go_to_preview FAILED tg_id=%s: %s", tg_id, e)
+        try:
+            await target_message.answer(
+                "⚠️ Что-то пошло не так при подготовке предпросмотра. "
+                "Попробуй /post снова. Логи у админа."
             )
-        )
-        loaded_tags = list(rs.scalars().all())
-        # Хак: render_listing делает свой запрос за tags по listing_id —
-        # для preview подменим, собрав текст вручную.
-    text = await _render_preview(data, u, loaded_tags, lang)
-    await state.set_state(PostStates.preview)
-    await target_message.answer(
-        t(lang, "post_preview_title") + "\n\n" + text,
-        reply_markup=_kb_preview(lang),
-    )
+        except Exception:
+            pass
+        await state.clear()
 
 
-async def _render_preview(
-    data: dict, user, tags: list[Tag], lang: str
+def _default_contact_from_snapshot(snap: dict) -> str:
+    if snap.get("contact_phone"):
+        return f"📱 {snap['contact_phone']}"
+    if snap.get("contact_whatsapp"):
+        return f"💬 WhatsApp {snap['contact_whatsapp']}"
+    if snap.get("contact_email"):
+        return f"✉️ {snap['contact_email']}"
+    return "Telegram DM"
+
+
+async def _render_preview_safe(
+    data: dict, user_snapshot: dict, tags: list[Tag], lang: str
 ) -> str:
-    """Превью (для preview-step) — собираем как render_listing, но из state."""
+    """Превью без зависимости от ORM-объекта (чтобы не было DetachedInstanceError).
+
+    user_snapshot — словарь полей User, собранный пока сессия была открыта.
+    """
     locs = [tg for tg in tags if tg.category == "location"
             and tg.id in data.get("location_ids", [])]
     skills = [tg for tg in tags if tg.category != "location"
@@ -452,7 +478,9 @@ async def _render_preview(
     if custom_loc:
         loc_parts.append(custom_loc)
     loc_str = ", ".join(loc_parts) or "—"
-    skill_str = ", ".join(tg.label_ru if lang == "ru" else tg.label_en for tg in skills) or "—"
+    skill_str = ", ".join(
+        tg.label_ru if lang == "ru" else tg.label_en for tg in skills
+    ) or "—"
 
     kind = data.get("kind")
     parts = [
@@ -464,30 +492,57 @@ async def _render_preview(
     if kind == "offer":
         n = data.get("num_people")
         if n:
-            parts.append(f"👥 Нужно человек: <b>{listings_svc.NUM_PEOPLE_LABELS.get(n, n)}</b>")
+            parts.append(
+                "👥 Нужно человек: "
+                f"<b>{listings_svc.NUM_PEOPLE_LABELS.get(n, n)}</b>"
+            )
         hk = data.get("helper_kind")
         if hk:
-            parts.append(f"👷 Кто нужен: <b>{listings_svc.label(listings_svc.HELPER_LABELS, lang, hk)}</b>")
+            parts.append(
+                "👷 Кто нужен: "
+                f"<b>{listings_svc.label(listings_svc.HELPER_LABELS, lang, hk)}</b>"
+            )
         lr = data.get("language_req")
         if lr:
-            parts.append(f"🗣 Язык общения: <b>{listings_svc.label(listings_svc.LANGUAGE_OFFER_LABELS, lang, lr)}</b>")
+            parts.append(
+                "🗣 Язык общения: "
+                f"<b>{listings_svc.label(listings_svc.LANGUAGE_OFFER_LABELS, lang, lr)}</b>"
+            )
         b = data.get("budget")
         if b:
-            parts.append(f"💵 Бюджет: <b>{listings_svc.label(listings_svc.BUDGET_LABELS, lang, b)}</b>")
+            parts.append(
+                "💵 Бюджет: "
+                f"<b>{listings_svc.label(listings_svc.BUDGET_LABELS, lang, b)}</b>"
+            )
     else:
         ek = data.get("engagement_kind")
         if ek:
-            parts.append(f"📋 Занятость: <b>{listings_svc.label(listings_svc.ENGAGEMENT_LABELS, lang, ek)}</b>")
+            parts.append(
+                "📋 Занятость: "
+                f"<b>{listings_svc.label(listings_svc.ENGAGEMENT_LABELS, lang, ek)}</b>"
+            )
         lr = data.get("language_req")
         if lr:
-            parts.append(f"🗣 Языки: <b>{listings_svc.label(listings_svc.LANGUAGE_SEEK_LABELS, lang, lr)}</b>")
+            parts.append(
+                "🗣 Языки: "
+                f"<b>{listings_svc.label(listings_svc.LANGUAGE_SEEK_LABELS, lang, lr)}</b>"
+            )
 
-    parts.append(f"⏱ Длительность: <b>{listings_svc.label(listings_svc.DURATION_LABELS, lang, data.get('duration'))}</b>")
-    parts.append(f"⚡ Срочность: <b>{listings_svc.label(listings_svc.URGENCY_LABELS, lang, data.get('urgency'))}</b>")
+    parts.append(
+        "⏱ Длительность: "
+        f"<b>{listings_svc.label(listings_svc.DURATION_LABELS, lang, data.get('duration'))}</b>"
+    )
+    parts.append(
+        "⚡ Срочность: "
+        f"<b>{listings_svc.label(listings_svc.URGENCY_LABELS, lang, data.get('urgency'))}</b>"
+    )
     parts.append("")
-    parts.append(data.get("description", "—"))
+    parts.append(data.get("description") or "—")
 
-    contact = data.get("contact_override") or _default_contact_label(user)
+    contact = (
+        data.get("contact_override")
+        or _default_contact_from_snapshot(user_snapshot)
+    )
     parts.append("")
     parts.append(f"📞 Контакт: {contact}")
 

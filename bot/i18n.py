@@ -96,7 +96,10 @@ TEXTS: dict[str, dict[str, str]] = {
             "<b>Coworker</b>."
         ),
         "register_ask_name": "Как тебя зовут? (имя или название компании)",
-        "register_ask_area": "В каких районах Bay Area работаешь? (например: SF, Oakland, San Jose)",
+        "register_ask_area": (
+            "В каких районах North CA работаешь? "
+            "(например: SF, Oakland, San Jose, Sacramento…)"
+        ),
         "register_ask_primary_tag": (
             "Выбери <b>основной вид работ</b> — это твоя ключевая компетенция.\n"
             "По нему мы будем подбирать самые подходящие проекты."
@@ -522,7 +525,10 @@ TEXTS: dict[str, dict[str, str]] = {
             "project offers — type /register again and pick <b>Coworker</b>."
         ),
         "register_ask_name": "What's your name? (your name or company name)",
-        "register_ask_area": "Which Bay Area locations? (e.g. SF, Oakland, San Jose)",
+        "register_ask_area": (
+            "Which Northern California locations? "
+            "(e.g. SF, Oakland, San Jose, Sacramento…)"
+        ),
         "register_ask_primary_tag": (
             "Pick your <b>main work category</b> — your key skill.\n"
             "We'll match you to the most relevant projects by it."
