@@ -57,6 +57,7 @@ TAGS: list[tuple[str, str, str, str]] = [
     ("welding", "skill", "Сварка", "Welding"),
     ("design", "skill", "Дизайн", "Design"),
     ("permits", "skill", "Пермиты", "Permits"),
+    ("demolition", "skill", "Демонтаж", "Demolition"),
     # === Районы (крупные регионы; конкретный адрес/ZIP — в описание) ===
     ("loc_sf", "location", "SF", "San Francisco"),
     ("loc_san_jose", "location", "San Jose", "San Jose"),

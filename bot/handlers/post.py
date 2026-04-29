@@ -64,12 +64,14 @@ class PostStates(StatesGroup):
 
 
 def _kb_kind(lang: str) -> InlineKeyboardMarkup:
+    # «Ищу работу» (seek) временно скрыто — раскомментируем когда наберём
+    # аудиторию исполнителей (~> 100 Coworker-ов).
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=t(lang, "post_kind_offer_btn"),
                                   callback_data="p:k:offer")],
-            [InlineKeyboardButton(text=t(lang, "post_kind_seek_btn"),
-                                  callback_data="p:k:seek")],
+            # [InlineKeyboardButton(text=t(lang, "post_kind_seek_btn"),
+            #                       callback_data="p:k:seek")],
             [InlineKeyboardButton(text=t(lang, "post_cancel"),
                                   callback_data="p:cancel")],
         ]
