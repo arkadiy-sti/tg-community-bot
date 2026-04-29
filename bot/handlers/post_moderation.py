@@ -25,9 +25,11 @@ from aiogram.types import (
     Message,
 )
 
+from datetime import datetime, timezone
+
 from bot.config import get_settings
 from bot.db.database import get_session
-from bot.db.models import Listing, ListingPhoto, Response
+from bot.db.models import Deal, Listing, ListingPhoto, Response, User
 from bot.i18n import normalize_lang, t
 from bot.services import listings as listings_svc
 from bot.services import users
@@ -70,6 +72,80 @@ def _kb_respond(listing_id: int, lang: str) -> InlineKeyboardMarkup:
             callback_data=f"mp:resp:{listing_id}",
         ),
     ]])
+
+
+# ---------------------------------------------------------------------------
+# Helpers: карточка пользователя + кнопки контактов
+# ---------------------------------------------------------------------------
+
+
+async def _render_user_card(session, user: User, lang: str) -> str:
+    """Рендер /check-style карточки. Reuse profile._build_card."""
+    from bot.handlers.profile import _build_card
+    try:
+        return await _build_card(session, user, lang)
+    except Exception as e:
+        log.warning("Не удалось отрендерить карточку user_id=%s: %s",
+                    user.id, e)
+        return (
+            f"<b>{user.display_name or user.full_name or '—'}</b>\n"
+            f"@{user.username}" if user.username else ""
+        )
+
+
+def _contact_url_buttons(user: User) -> list[list[InlineKeyboardButton]]:
+    """Кнопки прямой связи: Telegram / WhatsApp / Phone / Email.
+
+    Все имеющиеся каналы выводятся отдельными кнопками; пользователь
+    тапает удобный способ. tel:/wa.me/mailto работают на iOS+Android в
+    Telegram-клиентах.
+    """
+    rows: list[list[InlineKeyboardButton]] = []
+    if user.username:
+        rows.append([InlineKeyboardButton(
+            text=f"💬 Telegram: @{user.username}",
+            url=f"https://t.me/{user.username}",
+        )])
+    if user.contact_whatsapp:
+        digits = user.contact_whatsapp.lstrip("+")
+        rows.append([InlineKeyboardButton(
+            text=f"💬 WhatsApp: {user.contact_whatsapp}",
+            url=f"https://wa.me/{digits}",
+        )])
+    if user.contact_phone:
+        rows.append([InlineKeyboardButton(
+            text=f"📞 Позвонить: {user.contact_phone}",
+            url=f"tel:{user.contact_phone}",
+        )])
+    if user.contact_email:
+        rows.append([InlineKeyboardButton(
+            text=f"✉️ Email: {user.contact_email}",
+            url=f"mailto:{user.contact_email}",
+        )])
+    return rows
+
+
+def _kb_author_actions(
+    response_id: int, listing_id: int, lang: str,
+    contact_buttons: list[list[InlineKeyboardButton]],
+) -> InlineKeyboardMarkup:
+    """Под DM автору: кнопки контактов + Нанял / Ещё ищу / Закрыть."""
+    rows = list(contact_buttons)
+    rows.append([
+        InlineKeyboardButton(
+            text=t(lang, "btn_hire_this"),
+            callback_data=f"mp:hire:{response_id}",
+        ),
+        InlineKeyboardButton(
+            text=t(lang, "btn_still_looking"),
+            callback_data=f"mp:still:{listing_id}",
+        ),
+    ])
+    rows.append([InlineKeyboardButton(
+        text=t(lang, "btn_close_listing"),
+        callback_data=f"mp:close:{listing_id}",
+    )])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +222,36 @@ async def notify_moderators_for_listing(bot: Bot, listing_id: int) -> None:
 # ---------------------------------------------------------------------------
 # Approve → публикация в группу
 # ---------------------------------------------------------------------------
+
+
+async def _close_group_message(bot: Bot | None, listing: Listing) -> None:
+    """Когда listing достиг cap — убрать кнопку «Откликнуться» в группе и
+    дописать "🔒 Набор закрыт" в текст. Best-effort: если сообщение уже
+    нельзя редактировать (≥48 часов в Telegram), молча игнорируем.
+    """
+    if bot is None:
+        return
+    settings = get_settings()
+    chat_id = settings.main_chat_id
+    if not chat_id or not listing.channel_message_id:
+        return
+    try:
+        await bot.edit_message_reply_markup(
+            chat_id=chat_id,
+            message_id=listing.channel_message_id,
+            reply_markup=None,
+        )
+    except Exception as e:
+        log.info("edit_message_reply_markup failed (likely too old): %s", e)
+    # Постим reply «закрыто» под сообщением
+    try:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=t("ru", "post_listing_closed_in_group"),
+            reply_to_message_id=listing.channel_message_id,
+        )
+    except Exception as e:
+        log.info("close-reply send failed: %s", e)
 
 
 async def _publish_to_group(
@@ -399,7 +505,9 @@ async def cb_respond(callback: CallbackQuery) -> None:
             await callback.answer("Объявление не найдено.", show_alert=True)
             return
         if listing.status != "approved":
-            await callback.answer("Объявление недоступно.", show_alert=True)
+            await callback.answer(
+                t("ru", "post_response_cap_reached"), show_alert=True,
+            )
             return
 
         # Собираем responder и author
@@ -413,16 +521,24 @@ async def cb_respond(callback: CallbackQuery) -> None:
 
         if author is None or author.tg_id == callback.from_user.id:
             await callback.answer(
-                "Нельзя откликнуться на свое объявление.", show_alert=True,
+                t("ru", "post_response_self"), show_alert=True,
             )
             return
-        if responder is None:
+        if responder is None or responder.role != "coworker":
+            # Гость / нерег — даём явный путь к регистрации
+            try:
+                me = await callback.bot.me() if callback.bot else None
+                bot_username = me.username if me else "C0w0rker1_bot"
+            except Exception:
+                bot_username = "C0w0rker1_bot"
             await callback.answer(
-                "Сначала зарегистрируйся в боте: /start", show_alert=True,
+                t("ru", "post_response_register_first",
+                  bot_username=bot_username),
+                show_alert=True,
             )
             return
 
-        # Создаём Response. Защита от повторных кликов — UNIQUE по (listing, responder)
+        # Защита от повторных кликов
         rs_existing = await session.execute(
             select(Response).where(
                 Response.listing_id == listing_id,
@@ -434,56 +550,276 @@ async def cb_respond(callback: CallbackQuery) -> None:
                 "Ты уже откликался на это объявление.", show_alert=True,
             )
             return
-        session.add(Response(
-            listing_id=listing_id,
-            responder_id=responder.id,
-            text=None,
-        ))
-        await session.commit()
 
-        # Считаем общее число откликов на это объявление
+        # Cap = num_people + RESPONSE_CAP_BONUS
         from sqlalchemy import func as sa_func
-        responses_count = await session.scalar(
+        current_count = await session.scalar(
             select(sa_func.count()).select_from(Response).where(
                 Response.listing_id == listing_id
             )
         ) or 0
         needed = listing.num_people or 1
+        cap = needed + listings_svc.RESPONSE_CAP_BONUS
 
-    # DM автору
-    if callback.bot and author:
-        responder_label = (
-            f"@{responder.username}" if responder.username
-            else (responder.display_name or responder.full_name or f"id{responder.tg_id}")
+        if current_count >= cap:
+            # Уже достигнут cap — не создаём response
+            await callback.answer(
+                t("ru", "post_response_cap_reached"), show_alert=True,
+            )
+            # На всякий случай: если status ещё approved — закроем
+            if listing.status == "approved":
+                listing.status = "expired"
+                await session.commit()
+                await _close_group_message(callback.bot, listing)
+            return
+
+        # Создаём Response
+        new_response = Response(
+            listing_id=listing_id,
+            responder_id=responder.id,
+            text=None,
         )
-        # Контакт responder (его приоритетный)
-        if responder.contact_phone:
-            contact = f"📱 {responder.contact_phone}"
-        elif responder.contact_whatsapp:
-            contact = f"💬 WhatsApp {responder.contact_whatsapp}"
-        elif responder.contact_email:
-            contact = f"✉️ {responder.contact_email}"
-        elif responder.username:
-            contact = f"@{responder.username}"
-        else:
-            contact = "Telegram DM"
+        session.add(new_response)
+        await session.commit()
+        await session.refresh(new_response)
+        response_id = new_response.id
+        responses_count = current_count + 1
+
+        # Если этот отклик дотянул до cap — закрываем объявление
+        if responses_count >= cap:
+            listing.status = "expired"
+            await session.commit()
+            await _close_group_message(callback.bot, listing)
+
+        # Рендерим карточки обоих и собираем контакт-кнопки
+        # (важно — пока сессия открыта, иначе lazy-load упадёт)
+        author_card = await _render_user_card(session, author, "ru")
+        responder_card = await _render_user_card(session, responder, "ru")
+        author_contact_btns = _contact_url_buttons(author)
+        responder_contact_btns = _contact_url_buttons(responder)
+        author_tg_id = author.tg_id
+        author_lang = normalize_lang(author.language)
+        responder_lang = normalize_lang(responder.language)
+        responder_tg_id = responder.tg_id
+
+    # DM автору — карточка responder-а + контакт-кнопки + действия
+    if callback.bot:
         try:
-            lang = normalize_lang(author.language)
+            kb_for_author = _kb_author_actions(
+                response_id, listing_id, author_lang,
+                contact_buttons=responder_contact_btns,
+            )
             await callback.bot.send_message(
-                chat_id=author.tg_id,
-                text=t(lang, "post_response_to_author",
-                       responder=responder_label, contact=contact,
+                chat_id=author_tg_id,
+                text=t(author_lang, "post_response_to_author",
+                       listing_id=listing_id, card=responder_card,
                        count=responses_count, needed=needed),
+                reply_markup=kb_for_author,
+                disable_web_page_preview=True,
             )
         except Exception as e:
             log.warning("Не удалось уведомить автора tg_id=%s: %s",
-                        author.tg_id, e)
+                        author_tg_id, e)
 
-    # Подтверждение responder-у
+    # DM responder-у — карточка автора + контакт-кнопки
+    if callback.bot:
+        try:
+            kb_for_responder = (
+                InlineKeyboardMarkup(inline_keyboard=author_contact_btns)
+                if author_contact_btns else None
+            )
+            await callback.bot.send_message(
+                chat_id=responder_tg_id,
+                text=t(responder_lang, "post_response_to_responder",
+                       listing_id=listing_id, card=author_card),
+                reply_markup=kb_for_responder,
+                disable_web_page_preview=True,
+            )
+        except Exception as e:
+            log.warning("Не удалось отправить ack responder-у tg_id=%s: %s",
+                        responder_tg_id, e)
+
+    # Короткое подтверждение в popup
     await callback.answer(
-        t("ru", "post_response_acked"), show_alert=True,
+        t(responder_lang, "post_response_acked"), show_alert=True,
     )
     log.info(
-        "Response: listing=%s responder=%s author=%s",
-        listing_id, callback.from_user.id, author.tg_id if author else None,
+        "Response created: listing=%s responder=%s author=%s response_id=%s",
+        listing_id, callback.from_user.id, author_tg_id, response_id,
     )
+
+
+# ---------------------------------------------------------------------------
+# Author actions: Hire / Still looking / Close
+# ---------------------------------------------------------------------------
+
+
+@router.callback_query(F.data.startswith("mp:hire:"))
+async def cb_hire(callback: CallbackQuery) -> None:
+    """Автор отметил отклик как «нанял этого». Создаёт Deal, может закрыть listing."""
+    if callback.from_user is None or callback.data is None:
+        return
+    try:
+        response_id = int(callback.data.split(":")[2])
+    except (ValueError, IndexError):
+        await callback.answer()
+        return
+
+    async with get_session() as session:
+        from sqlalchemy import select, func as sa_func
+        response = await session.get(Response, response_id)
+        if response is None:
+            await callback.answer("Отклик не найден.", show_alert=True)
+            return
+
+        listing = await session.get(Listing, response.listing_id)
+        if listing is None:
+            await callback.answer("Объявление исчезло.", show_alert=True)
+            return
+
+        # Проверяем что это автор
+        rs = await session.execute(
+            select(User).where(User.id == listing.user_id)
+        )
+        author = rs.scalar_one_or_none()
+        if author is None or author.tg_id != callback.from_user.id:
+            await callback.answer("Доступно только автору объявления.",
+                                  show_alert=True)
+            return
+
+        if response.is_hired:
+            await callback.answer("Уже отмечен как нанятый.", show_alert=True)
+            return
+
+        # Помечаем
+        response.is_hired = True
+        response.hired_at = datetime.now(timezone.utc)
+
+        # Создаём Deal (если ещё нет на эту пару)
+        existing_deal = await session.execute(
+            select(Deal).where(
+                Deal.listing_id == listing.id,
+                Deal.contractor_id == response.responder_id,
+                Deal.customer_id == author.id,
+            )
+        )
+        if existing_deal.scalar_one_or_none() is None:
+            session.add(Deal(
+                customer_id=author.id,
+                contractor_id=response.responder_id,
+                listing_id=listing.id,
+                status="open",
+            ))
+
+        await session.commit()
+
+        # Считаем сколько уже нанято
+        hired_count = await session.scalar(
+            select(sa_func.count())
+            .select_from(Response)
+            .where(
+                Response.listing_id == listing.id,
+                Response.is_hired.is_(True),
+            )
+        ) or 0
+        needed = listing.num_people or 1
+
+        listing_was_closed = False
+        if hired_count >= needed and listing.status == "approved":
+            listing.status = "closed"
+            await session.commit()
+            await _close_group_message(callback.bot, listing)
+            listing_was_closed = True
+
+    log.info(
+        "Hire: response_id=%s listing=%s by=%s closed=%s",
+        response_id, listing.id, callback.from_user.id, listing_was_closed,
+    )
+
+    # Убираем кнопки действий из этого DM (контакт-кнопки оставляем)
+    if callback.message and callback.message.reply_markup:
+        try:
+            new_rows = [
+                row for row in callback.message.reply_markup.inline_keyboard
+                if not any(
+                    btn.callback_data and btn.callback_data.startswith(("mp:hire", "mp:still", "mp:close"))
+                    for btn in row
+                )
+            ]
+            if new_rows:
+                await callback.message.edit_reply_markup(
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=new_rows)
+                )
+            else:
+                await callback.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+
+    await callback.answer(
+        t("ru", "hire_acked_closed" if listing_was_closed else "hire_acked"),
+        show_alert=True,
+    )
+
+
+@router.callback_query(F.data.startswith("mp:still:"))
+async def cb_still_looking(callback: CallbackQuery) -> None:
+    """Автор: «ещё ищу» — просто ack, ничего не меняем."""
+    if callback.from_user is None or callback.data is None:
+        return
+    await callback.answer(t("ru", "still_looking_acked"), show_alert=False)
+
+
+@router.callback_query(F.data.startswith("mp:close:"))
+async def cb_close_listing(callback: CallbackQuery) -> None:
+    """Автор закрывает объявление вручную."""
+    if callback.from_user is None or callback.data is None:
+        return
+    try:
+        listing_id = int(callback.data.split(":")[2])
+    except (ValueError, IndexError):
+        await callback.answer()
+        return
+
+    async with get_session() as session:
+        from sqlalchemy import select
+        listing = await session.get(Listing, listing_id)
+        if listing is None:
+            await callback.answer("Объявление не найдено.", show_alert=True)
+            return
+        rs = await session.execute(
+            select(User).where(User.id == listing.user_id)
+        )
+        author = rs.scalar_one_or_none()
+        if author is None or author.tg_id != callback.from_user.id:
+            await callback.answer("Доступно только автору объявления.",
+                                  show_alert=True)
+            return
+        if listing.status not in ("approved", "expired"):
+            await callback.answer(
+                f"Объявление в статусе {listing.status}.", show_alert=True,
+            )
+            return
+        listing.status = "closed"
+        await session.commit()
+        await _close_group_message(callback.bot, listing)
+
+    if callback.message and callback.message.reply_markup:
+        try:
+            new_rows = [
+                row for row in callback.message.reply_markup.inline_keyboard
+                if not any(
+                    btn.callback_data and btn.callback_data.startswith(("mp:hire", "mp:still", "mp:close"))
+                    for btn in row
+                )
+            ]
+            if new_rows:
+                await callback.message.edit_reply_markup(
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=new_rows)
+                )
+            else:
+                await callback.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+
+    log.info("Close: listing=%s by=%s", listing_id, callback.from_user.id)
+    await callback.answer(t("ru", "close_acked"), show_alert=True)

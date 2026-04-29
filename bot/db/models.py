@@ -298,6 +298,11 @@ class Response(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
+    # v2: автор отметил отклик как «нанял» → создаётся Deal
+    is_hired: Mapped[bool] = mapped_column(Boolean, default=False)
+    hired_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     listing: Mapped["Listing"] = relationship("Listing", back_populates="responses")
     responder: Mapped["User"] = relationship("User", foreign_keys=[responder_id])

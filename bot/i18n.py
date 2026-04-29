@@ -331,14 +331,53 @@ TEXTS: dict[str, dict[str, str]] = {
             "Ты можешь поправить и опубликовать снова через /post."
         ),
         "post_response_to_author": (
-            "📩 На твоё объявление откликнулся <b>{responder}</b>.\n\n"
-            "Контакт: {contact}\n\n"
+            "📩 <b>На твоё объявление #LST-{listing_id} откликнулся:</b>\n\n"
+            "{card}\n\n"
             "📊 Отклики: <b>{count}</b> / нужно <b>{needed}</b>\n\n"
-            "Свяжись напрямую — бот посредником не работает.\n"
-            "Когда найдёшь — закрой через /my_posts, чтобы убрать из ленты."
+            "Кнопки ниже — связаться или отметить статус. "
+            "Когда нанял всех — объявление закроется автоматически."
+        ),
+        "post_response_to_responder": (
+            "✅ <b>Ты откликнулся на объявление #LST-{listing_id}.</b>\n\n"
+            "Профиль автора:\n\n{card}\n\n"
+            "Связаться с автором можно по кнопкам ниже. "
+            "Если автор ответит — он напишет тебе сам."
+        ),
+        "btn_hire_this": "✅ Нанял этого",
+        "btn_still_looking": "⏳ Ещё ищу",
+        "btn_close_listing": "🔒 Закрыть",
+        "hire_acked": (
+            "✅ Отметил как нанятого. Создал запись о сделке — "
+            "после её завершения сможешь оставить отзыв."
+        ),
+        "hire_acked_closed": (
+            "✅ Отметил как нанятого. Все нужные люди найдены — "
+            "объявление автоматически закрыто."
+        ),
+        "still_looking_acked": (
+            "⏳ Окей, продолжаем. Объявление остаётся в ленте."
+        ),
+        "close_acked": (
+            "🔒 Объявление закрыто. Спасибо!"
         ),
         "post_response_acked": (
             "✅ Твой отклик отправлен автору. Если он на связи — скоро ответит."
+        ),
+        "post_response_register_first": (
+            "🔒 Сначала зарегистрируйся в боте.\n\n"
+            "Открой @{bot_username}, нажми /start, заполни профиль — "
+            "и возвращайся откликаться."
+        ),
+        "post_response_cap_reached": (
+            "🔒 На это объявление уже достаточно откликов.\n"
+            "Автор закрыл набор — попробуй другие объявления."
+        ),
+        "post_response_self": (
+            "Нельзя откликнуться на своё объявление 🙂"
+        ),
+        "post_listing_closed_in_group": (
+            "🔒 <b>Набор закрыт.</b> Спасибо за интерес — автор получил "
+            "достаточно откликов."
         ),
         # Модерация — для админов
         "mod_new_listing": (
@@ -722,14 +761,53 @@ TEXTS: dict[str, dict[str, str]] = {
             "You can fix and resubmit via /post."
         ),
         "post_response_to_author": (
-            "📩 <b>{responder}</b> responded to your listing.\n\n"
-            "Contact: {contact}\n\n"
+            "📩 <b>New response to your listing #LST-{listing_id}:</b>\n\n"
+            "{card}\n\n"
             "📊 Responses: <b>{count}</b> / needed <b>{needed}</b>\n\n"
-            "Reach out directly — the bot doesn't relay messages.\n"
-            "When done — close via /my_posts to remove from feed."
+            "Use the buttons below to connect or mark status. "
+            "When everyone's hired — the listing closes automatically."
+        ),
+        "post_response_to_responder": (
+            "✅ <b>You responded to listing #LST-{listing_id}.</b>\n\n"
+            "Author's profile:\n\n{card}\n\n"
+            "Use the buttons below to reach out. "
+            "If the author wants to connect — they'll DM you."
+        ),
+        "btn_hire_this": "✅ Hire this one",
+        "btn_still_looking": "⏳ Still looking",
+        "btn_close_listing": "🔒 Close",
+        "hire_acked": (
+            "✅ Marked as hired. Created a deal record — "
+            "you'll be able to leave a review when it's done."
+        ),
+        "hire_acked_closed": (
+            "✅ Marked as hired. All needed people found — "
+            "listing automatically closed."
+        ),
+        "still_looking_acked": (
+            "⏳ OK, keeping it open."
+        ),
+        "close_acked": (
+            "🔒 Listing closed. Thanks!"
         ),
         "post_response_acked": (
             "✅ Your response sent to the author. If they're around — they'll be in touch."
+        ),
+        "post_response_register_first": (
+            "🔒 Register first.\n\n"
+            "Open @{bot_username}, tap /start, fill out your profile — "
+            "then come back and respond."
+        ),
+        "post_response_cap_reached": (
+            "🔒 This listing already has enough responses.\n"
+            "The author closed the slot — check other listings."
+        ),
+        "post_response_self": (
+            "Can't respond to your own listing 🙂"
+        ),
+        "post_listing_closed_in_group": (
+            "🔒 <b>Closed.</b> Thanks for the interest — the author has "
+            "enough responses."
         ),
         "mod_new_listing": (
             "🆕 <b>New listing #LST-{id}</b> for moderation\n\n"

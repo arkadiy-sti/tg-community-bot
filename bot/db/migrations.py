@@ -45,6 +45,11 @@ _TAG_COLUMNS: list[tuple[str, str, str]] = [
     ("tags", "usages_count", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
+_RESPONSE_COLUMNS: list[tuple[str, str, str]] = [
+    ("responses", "is_hired", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("responses", "hired_at", "TIMESTAMP WITH TIME ZONE"),
+]
+
 _LISTING_COLUMNS: list[tuple[str, str, str]] = [
     ("listings", "num_people", "INTEGER"),
     ("listings", "engagement_kind", "VARCHAR(16)"),
@@ -167,6 +172,8 @@ async def run_migrations(engine: AsyncEngine) -> None:
         await _ensure_columns(conn, _TAG_COLUMNS)
         # 3. Колонки в listings (v2 — структурированные поля /post)
         await _ensure_columns(conn, _LISTING_COLUMNS)
+        # 3a. Колонки в responses (v2 — отметка «нанят»)
+        await _ensure_columns(conn, _RESPONSE_COLUMNS)
         # 4. Таблица user_tags (v2)
         ut_ddl = (
             _USER_TAGS_DDL_PG
