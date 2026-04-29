@@ -54,3 +54,24 @@ async def cmd_rules(message: Message) -> None:
     await message.answer(
         t(lang, "rules", community=t(lang, "community_name"))
     )
+
+
+@router.message(Command("whichchat"))
+async def cmd_whichchat(message: Message) -> None:
+    """Diag: показать chat_id текущего чата. Только для админов.
+
+    Используется чтобы получить GROUP_CHAT_ID для .env: добавь бота в группу,
+    напиши там /whichchat — бот ответит ID группы (отрицательное число).
+    """
+    settings = get_settings()
+    if message.from_user is None or message.from_user.id not in settings.admin_ids:
+        return  # тихо игнорируем для не-админов
+    chat = message.chat
+    info = (
+        f"<b>Chat info</b>\n"
+        f"id: <code>{chat.id}</code>\n"
+        f"type: {chat.type}\n"
+        f"title: {chat.title or '—'}\n"
+        f"username: @{chat.username}" if chat.username else f"username: —"
+    )
+    await message.reply(info)

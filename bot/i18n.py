@@ -415,24 +415,7 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "post_send": "📨 Отправить на модерацию",
         "post_cancel": "✖ Отменить",
-        "post_sent": "✅ Отправлено на модерацию. Я напишу, когда админ проверит.",
-        "post_canceled": "Отменено.",
-        "post_approved_user": "✅ Твоё объявление опубликовано.",
-        "post_rejected_user": "❌ Объявление отклонено модератором.\nПричина: {reason}",
         "post_too_long": "Слишком длинно ({n} символов, лимит {max}).",
-
-        # --- Модерация ---
-        "mod_new_listing": (
-            "<b>На модерацию</b>\n"
-            "От: {author}\n"
-            "Тип: {kind}\n"
-            "Теги: {tags}\n\n"
-            "{text}"
-        ),
-        "mod_approve": "✅ Опубликовать",
-        "mod_reject": "❌ Отклонить",
-        "mod_done_approved": "Опубликовано в канал.",
-        "mod_done_rejected": "Отклонено.",
 
         # --- Подписки ---
         "subscription_required": (
@@ -763,21 +746,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "Listing marked as approved but not sent to the group."
         ),
         "post_respond_btn": "📩 Respond",
-        "post_canceled": "Canceled.",
-        "post_approved_user": "✅ Your listing has been published.",
-        "post_rejected_user": "❌ Listing rejected by moderator.\nReason: {reason}",
         "post_too_long": "Too long ({n} chars, limit {max}).",
-        "mod_new_listing": (
-            "<b>For moderation</b>\n"
-            "From: {author}\n"
-            "Type: {kind}\n"
-            "Tags: {tags}\n\n"
-            "{text}"
-        ),
-        "mod_approve": "✅ Approve",
-        "mod_reject": "❌ Reject",
-        "mod_done_approved": "Published to channel.",
-        "mod_done_rejected": "Rejected.",
         "subscription_required": (
             "This feature is for subscribers.\n"
             "$20/mo for individuals, $200/mo for companies.\n"
