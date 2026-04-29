@@ -163,6 +163,7 @@ async def create_listing(
     urgency: str | None = None,
     budget: str | None = None,
     contact_override: str | None = None,
+    location_freetext: str | None = None,
     photo_file_ids: Iterable[str] | None = None,
 ) -> Listing:
     """Создать объявление со всеми связанными сущностями. Status='pending'."""
@@ -179,6 +180,7 @@ async def create_listing(
         urgency=urgency,
         budget=budget,
         contact_override=contact_override,
+        location_freetext=location_freetext,
     )
     session.add(listing)
     await session.flush()
@@ -255,7 +257,10 @@ async def render_listing(
 ) -> str:
     """Сформировать HTML-текст объявления для публикации/preview."""
     locations, skills = await get_listing_tags_split(session, listing.id)
-    loc_str = ", ".join(t.label_ru if lang == "ru" else t.label_en for t in locations) or "—"
+    loc_parts = [t.label_ru if lang == "ru" else t.label_en for t in locations]
+    if listing.location_freetext:
+        loc_parts.append(listing.location_freetext)
+    loc_str = ", ".join(loc_parts) or "—"
     skill_str = ", ".join(t.label_ru if lang == "ru" else t.label_en for t in skills) or "—"
 
     kind_str = label(KIND_LABELS, lang, listing.kind)

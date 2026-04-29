@@ -54,6 +54,7 @@ _LISTING_COLUMNS: list[tuple[str, str, str]] = [
     ("listings", "urgency", "VARCHAR(16)"),
     ("listings", "budget", "VARCHAR(16)"),
     ("listings", "contact_override", "VARCHAR(254)"),
+    ("listings", "location_freetext", "VARCHAR(256)"),
 ]
 
 

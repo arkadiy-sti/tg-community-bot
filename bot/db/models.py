@@ -227,6 +227,8 @@ class Listing(Base):
     # 'under_500' | '500_2k' | '2k_10k' | 'over_10k' | 'discuss' | None
     contact_override: Mapped[str | None] = mapped_column(String(254), nullable=True)
     # если автор для этого объявления указал другой контакт
+    location_freetext: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # пользовательский ввод (город/ZIP/адрес) если предустановленных регионов мало
 
     author: Mapped["User"] = relationship(
         "User", back_populates="listings", foreign_keys=[user_id]

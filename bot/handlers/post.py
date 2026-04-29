@@ -40,6 +40,7 @@ router = Router(name="post")
 class PostStates(StatesGroup):
     kind = State()
     locations = State()
+    location_custom_input = State()
     skills = State()
     skill_custom_input = State()
     num_people = State()        # offer
@@ -269,14 +270,18 @@ def _default_contact_label(user) -> str:
 async def _send_locations_step(message: Message, state: FSMContext, lang: str) -> None:
     data = await state.get_data()
     selected = set(data.get("location_ids", []))
+    custom_loc = data.get("location_freetext")
     async with get_session() as session:
         loc_tags = await list_tags_by_category(session, "location")
     text = t(
         lang, "post_ask_locations",
         limit=listings_svc.MAX_LOCATIONS, selected=len(selected),
     )
+    if custom_loc:
+        text += f"\n\n📍 Свой адрес: <b>{custom_loc}</b>"
     kb = _kb_tag_grid(
-        loc_tags, lang, selected=selected, show_done=True, cb_prefix="p:l"
+        loc_tags, lang, selected=selected,
+        show_done=True, show_custom=True, cb_prefix="p:l",
     )
     await state.set_state(PostStates.locations)
     await message.answer(text, reply_markup=kb)
@@ -442,8 +447,12 @@ async def _render_preview(
             and tg.id in data.get("location_ids", [])]
     skills = [tg for tg in tags if tg.category != "location"
               and tg.id in data.get("skill_ids", [])]
-    loc_str = ", ".join(t.label_ru if lang == "ru" else t.label_en for t in locs) or "—"
-    skill_str = ", ".join(t.label_ru if lang == "ru" else t.label_en for t in skills) or "—"
+    loc_parts = [tg.label_ru if lang == "ru" else tg.label_en for tg in locs]
+    custom_loc = data.get("location_freetext")
+    if custom_loc:
+        loc_parts.append(custom_loc)
+    loc_str = ", ".join(loc_parts) or "—"
+    skill_str = ", ".join(tg.label_ru if lang == "ru" else tg.label_en for tg in skills) or "—"
 
     kind = data.get("kind")
     parts = [
@@ -571,9 +580,10 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
     lang = data.get("lang", "ru")
     selected: list[int] = list(data.get("location_ids", []))
+    custom_loc = data.get("location_freetext")
 
     if payload == "done":
-        if not selected:
+        if not selected and not custom_loc:
             await callback.answer(t(lang, "post_need_locations"), show_alert=True)
             return
         if callback.message:
@@ -582,6 +592,13 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
             except Exception:
                 pass
             await _send_skills_step(callback.message, state, lang)
+        await callback.answer()
+        return
+
+    if payload == "custom":
+        await state.set_state(PostStates.location_custom_input)
+        if callback.message:
+            await callback.message.answer(t(lang, "post_ask_custom_location"))
         await callback.answer()
         return
 
@@ -606,17 +623,36 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
     # Перерисовать клавиатуру
     async with get_session() as session:
         loc_tags = await list_tags_by_category(session, "location")
+    new_text = t(
+        lang, "post_ask_locations",
+        limit=listings_svc.MAX_LOCATIONS, selected=len(s),
+    )
+    if custom_loc:
+        new_text += f"\n\n📍 Свой адрес: <b>{custom_loc}</b>"
     if callback.message:
         try:
             await callback.message.edit_text(
-                t(lang, "post_ask_locations",
-                  limit=listings_svc.MAX_LOCATIONS, selected=len(s)),
+                new_text,
                 reply_markup=_kb_tag_grid(loc_tags, lang, selected=s,
-                                           show_done=True, cb_prefix="p:l"),
+                                           show_done=True, show_custom=True,
+                                           cb_prefix="p:l"),
             )
         except Exception:
             pass
     await callback.answer()
+
+
+@router.message(PostStates.location_custom_input)
+async def step_location_custom(message: Message, state: FSMContext) -> None:
+    if not message.text:
+        return
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    custom = message.text.strip()[:256]
+    if not custom:
+        return
+    await state.update_data(location_freetext=custom)
+    await _send_locations_step(message, state, lang)
 
 
 # ---------------------------------------------------------------------------
@@ -1131,6 +1167,7 @@ async def cb_submit(callback: CallbackQuery, state: FSMContext) -> None:
             urgency=data.get("urgency"),
             budget=data.get("budget"),
             contact_override=data.get("contact_override"),
+            location_freetext=data.get("location_freetext"),
             photo_file_ids=data.get("photo_ids", []),
         )
     await state.clear()
