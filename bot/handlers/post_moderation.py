@@ -151,7 +151,11 @@ async def notify_moderators_for_listing(bot: Bot, listing_id: int) -> None:
 async def _publish_to_group(
     bot: Bot, listing_id: int, *, group_chat_id: int
 ) -> int | None:
-    """Опубликовать listing в группу. Возвращает channel_message_id или None."""
+    """Опубликовать listing в группу. Возвращает channel_message_id или None.
+
+    Контакт автора маскируется (только тип, без номера) — приватность.
+    Реальный контакт автор получает в DM когда кто-то откликается.
+    """
     async with get_session() as session:
         listing = await session.get(Listing, listing_id)
         if listing is None:
@@ -162,7 +166,8 @@ async def _publish_to_group(
         author = rs.scalar_one_or_none()
         listing.author = author
         body = await listings_svc.render_listing(
-            session, listing, lang="ru", include_contact=True,
+            session, listing, lang="ru",
+            include_contact=True, mask_contact=True,  # ← скрываем номер
         )
         photos_rs = await session.execute(
             select(ListingPhoto).where(ListingPhoto.listing_id == listing.id)
@@ -417,13 +422,33 @@ async def cb_respond(callback: CallbackQuery) -> None:
             )
             return
 
-        # Создаём Response
+        # Создаём Response. Защита от повторных кликов — UNIQUE по (listing, responder)
+        rs_existing = await session.execute(
+            select(Response).where(
+                Response.listing_id == listing_id,
+                Response.responder_id == responder.id,
+            )
+        )
+        if rs_existing.scalar_one_or_none() is not None:
+            await callback.answer(
+                "Ты уже откликался на это объявление.", show_alert=True,
+            )
+            return
         session.add(Response(
             listing_id=listing_id,
             responder_id=responder.id,
             text=None,
         ))
         await session.commit()
+
+        # Считаем общее число откликов на это объявление
+        from sqlalchemy import func as sa_func
+        responses_count = await session.scalar(
+            select(sa_func.count()).select_from(Response).where(
+                Response.listing_id == listing_id
+            )
+        ) or 0
+        needed = listing.num_people or 1
 
     # DM автору
     if callback.bot and author:
@@ -447,7 +472,8 @@ async def cb_respond(callback: CallbackQuery) -> None:
             await callback.bot.send_message(
                 chat_id=author.tg_id,
                 text=t(lang, "post_response_to_author",
-                       responder=responder_label, contact=contact),
+                       responder=responder_label, contact=contact,
+                       count=responses_count, needed=needed),
             )
         except Exception as e:
             log.warning("Не удалось уведомить автора tg_id=%s: %s",

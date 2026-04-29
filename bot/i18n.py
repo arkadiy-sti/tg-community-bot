@@ -333,7 +333,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "post_response_to_author": (
             "📩 На твоё объявление откликнулся <b>{responder}</b>.\n\n"
             "Контакт: {contact}\n\n"
-            "Свяжись с ним напрямую — Telegram-бот посредником не работает."
+            "📊 Отклики: <b>{count}</b> / нужно <b>{needed}</b>\n\n"
+            "Свяжись напрямую — бот посредником не работает.\n"
+            "Когда найдёшь — закрой через /my_posts, чтобы убрать из ленты."
         ),
         "post_response_acked": (
             "✅ Твой отклик отправлен автору. Если он на связи — скоро ответит."
@@ -722,7 +724,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "post_response_to_author": (
             "📩 <b>{responder}</b> responded to your listing.\n\n"
             "Contact: {contact}\n\n"
-            "Reach out directly — the bot doesn't relay messages."
+            "📊 Responses: <b>{count}</b> / needed <b>{needed}</b>\n\n"
+            "Reach out directly — the bot doesn't relay messages.\n"
+            "When done — close via /my_posts to remove from feed."
         ),
         "post_response_acked": (
             "✅ Your response sent to the author. If they're around — they'll be in touch."

@@ -249,12 +249,36 @@ def _contact_line(user: User, override: str | None, lang: str) -> str:
     return "Telegram DM"
 
 
+def _contact_line_masked(user: User, override: str | None, lang: str) -> str:
+    """Тип контакта без значения — для публичной публикации в группе.
+
+    Реальный номер/email автор получает в DM от бота когда кто-то нажимает
+    «📩 Откликнуться» — т.е. контакт никогда не утекает в публичный чат.
+    """
+    if override:
+        # Если автор задал кастомный — сохраняем то что он указал явно
+        return f"{override} (через бота)" if lang == "ru" else f"{override} (via bot)"
+    if user.contact_phone:
+        return ("📱 Телефон (через бота)" if lang == "ru"
+                else "📱 Phone (via bot)")
+    if user.contact_whatsapp:
+        return ("💬 WhatsApp (через бота)" if lang == "ru"
+                else "💬 WhatsApp (via bot)")
+    if user.contact_email:
+        return ("✉️ Email (через бота)" if lang == "ru"
+                else "✉️ Email (via bot)")
+    if user.username:
+        return f"@{user.username} (Telegram)"
+    return "Telegram DM"
+
+
 async def render_listing(
     session: AsyncSession,
     listing: Listing,
     lang: str = "ru",
     *,
     include_contact: bool = True,
+    mask_contact: bool = False,
 ) -> str:
     """Сформировать HTML-текст объявления для публикации/preview."""
     locations, skills = await get_listing_tags_split(session, listing.id)
@@ -322,9 +346,12 @@ async def render_listing(
 
     if include_contact and listing.author is not None:
         parts.append("")
+        contact_renderer = (
+            _contact_line_masked if mask_contact else _contact_line
+        )
         parts.append(
             ("📞 Контакт: " if lang == "ru" else "📞 Contact: ")
-            + _contact_line(listing.author, listing.contact_override, lang)
+            + contact_renderer(listing.author, listing.contact_override, lang)
         )
 
     return "\n".join(parts)
