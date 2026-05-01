@@ -96,15 +96,21 @@ async def _render_user_card(session, user: User, lang: str) -> str:
 def _contact_url_buttons(user: User) -> list[list[InlineKeyboardButton]]:
     """Кнопки прямой связи: Telegram / WhatsApp / Phone / Email.
 
-    Все имеющиеся каналы выводятся отдельными кнопками; пользователь
-    тапает удобный способ. tel:/wa.me/mailto работают на iOS+Android в
-    Telegram-клиентах.
+    Telegram-кнопка добавляется ВСЕГДА — даже если у юзера нет @username,
+    мы используем tg://user?id={tg_id} (работает в любых Telegram-клиентах).
+    Это гарантирует что у автора есть хотя бы один способ связаться с
+    откликнувшимся.
     """
     rows: list[list[InlineKeyboardButton]] = []
     if user.username:
         rows.append([InlineKeyboardButton(
             text=f"💬 Telegram: @{user.username}",
             url=f"https://t.me/{user.username}",
+        )])
+    elif user.tg_id:
+        rows.append([InlineKeyboardButton(
+            text="💬 Написать в Telegram",
+            url=f"tg://user?id={user.tg_id}",
         )])
     if user.contact_whatsapp:
         digits = user.contact_whatsapp.lstrip("+")
@@ -282,21 +288,39 @@ async def _publish_to_group(
 
     kb = _kb_respond(listing_id, "ru")
 
-    if photo_files:
+    if not photo_files:
+        msg = await bot.send_message(
+            chat_id=group_chat_id, text=body, reply_markup=kb,
+        )
+        return msg.message_id
+
+    if len(photo_files) == 1:
+        # Один фото — caption + кнопка в одном сообщении
         msg = await bot.send_photo(
             chat_id=group_chat_id,
             photo=photo_files[0],
             caption=body[:1024],
             reply_markup=kb,
         )
-        if len(photo_files) > 1:
-            media = [InputMediaPhoto(media=fid) for fid in photo_files[1:]]
-            await bot.send_media_group(chat_id=group_chat_id, media=media)
-    else:
-        msg = await bot.send_message(
-            chat_id=group_chat_id, text=body, reply_markup=kb,
-        )
-    return msg.message_id
+        return msg.message_id
+
+    # Несколько фото — альбом всех фото, потом текст с кнопкой как reply.
+    # Telegram не поддерживает inline_keyboard на media_group, поэтому два сообщения.
+    # Визуально это смотрится как album + следующее под ним сообщение.
+    media = [InputMediaPhoto(media=fid) for fid in photo_files[:10]]
+    album_msgs = await bot.send_media_group(
+        chat_id=group_chat_id, media=media,
+    )
+    first_album_msg_id = album_msgs[0].message_id if album_msgs else None
+    text_msg = await bot.send_message(
+        chat_id=group_chat_id,
+        text=body,
+        reply_markup=kb,
+        reply_to_message_id=first_album_msg_id,
+    )
+    # channel_message_id — это сообщение с кнопкой (текстовое), его потом
+    # будем редактировать при close.
+    return text_msg.message_id
 
 
 @router.callback_query(F.data.startswith("mp:apr:"))

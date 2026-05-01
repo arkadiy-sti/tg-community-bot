@@ -231,14 +231,36 @@ def _kb_budget(lang: str) -> InlineKeyboardMarkup:
 
 
 def _kb_photos(lang: str, n: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(
-            text=t(lang, "post_photos_done").format(n=n),
-            callback_data="p:ph:done",
-        ),
-        InlineKeyboardButton(text=t(lang, "post_skip"), callback_data="p:ph:skip"),
-        InlineKeyboardButton(text=t(lang, "post_cancel"), callback_data="p:cancel"),
-    ]])
+    rows: list[list[InlineKeyboardButton]] = []
+    if n > 0:
+        rows.append([
+            InlineKeyboardButton(
+                text=t(lang, "post_photos_done").format(n=n),
+                callback_data="p:ph:done",
+            ),
+            InlineKeyboardButton(
+                text=t(lang, "post_photos_undo"),
+                callback_data="p:ph:undo",
+            ),
+        ])
+        rows.append([
+            InlineKeyboardButton(text=t(lang, "post_skip"),
+                                 callback_data="p:ph:skip"),
+            InlineKeyboardButton(text=t(lang, "post_cancel"),
+                                 callback_data="p:cancel"),
+        ])
+    else:
+        rows.append([
+            InlineKeyboardButton(
+                text=t(lang, "post_photos_done").format(n=n),
+                callback_data="p:ph:done",
+            ),
+            InlineKeyboardButton(text=t(lang, "post_skip"),
+                                 callback_data="p:ph:skip"),
+            InlineKeyboardButton(text=t(lang, "post_cancel"),
+                                 callback_data="p:cancel"),
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def _kb_contact_choice(lang: str) -> InlineKeyboardMarkup:
@@ -1111,6 +1133,33 @@ async def step_photo(message: Message, state: FSMContext) -> None:
     await message.answer(
         t(lang, "post_photo_added", n=n, limit=listings_svc.MAX_PHOTOS),
         reply_markup=_kb_photos(lang, n),
+    )
+
+
+@router.callback_query(PostStates.photos, F.data == "p:ph:undo")
+async def cb_photos_undo(callback: CallbackQuery, state: FSMContext) -> None:
+    """Удалить последнее загруженное фото из черновика."""
+    data = await state.get_data()
+    lang = data.get("lang", "ru")
+    photo_ids = list(data.get("photo_ids", []))
+    if not photo_ids:
+        await callback.answer()
+        return
+    photo_ids.pop()
+    await state.update_data(photo_ids=photo_ids)
+    n = len(photo_ids)
+    if callback.message:
+        try:
+            await callback.message.answer(
+                t(lang, "post_photo_removed",
+                  n=n, limit=listings_svc.MAX_PHOTOS),
+                reply_markup=_kb_photos(lang, n),
+            )
+        except Exception:
+            pass
+    await callback.answer(
+        t(lang, "post_photo_removed", n=n, limit=listings_svc.MAX_PHOTOS),
+        show_alert=False,
     )
 
 

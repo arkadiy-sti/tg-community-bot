@@ -256,6 +256,25 @@ def _contact_line(user: User, override: str | None, lang: str) -> str:
     return "Telegram DM"
 
 
+def _classify_override(override: str, lang: str) -> str:
+    """Определить тип override-контакта и вернуть masked-лейбл.
+
+    @username — публичен (это и так видно в Telegram), оставляем.
+    Всё остальное (телефон, email) — маскируем «через бота».
+    """
+    s = (override or "").strip()
+    if not s:
+        return "📞 Контакт (через бота)" if lang == "ru" else "📞 Contact (via bot)"
+    if s.startswith("@") and len(s) > 1 and " " not in s:
+        return f"💬 {s} (Telegram)"
+    if "@" in s and "." in s.split("@", 1)[-1]:
+        return "✉️ Email (через бота)" if lang == "ru" else "✉️ Email (via bot)"
+    digits = sum(c.isdigit() for c in s)
+    if digits >= 7:
+        return "📱 Телефон (через бота)" if lang == "ru" else "📱 Phone (via bot)"
+    return "📞 Контакт (через бота)" if lang == "ru" else "📞 Contact (via bot)"
+
+
 def _contact_line_masked(user: User, override: str | None, lang: str) -> str:
     """Тип контакта без значения — для публичной публикации в группе.
 
@@ -263,8 +282,7 @@ def _contact_line_masked(user: User, override: str | None, lang: str) -> str:
     «📩 Откликнуться» — т.е. контакт никогда не утекает в публичный чат.
     """
     if override:
-        # Если автор задал кастомный — сохраняем то что он указал явно
-        return f"{override} (через бота)" if lang == "ru" else f"{override} (via bot)"
+        return _classify_override(override, lang)
     if user.contact_phone:
         return ("📱 Телефон (через бота)" if lang == "ru"
                 else "📱 Phone (via bot)")
