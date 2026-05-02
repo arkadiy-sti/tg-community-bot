@@ -383,6 +383,27 @@ TEXTS: dict[str, dict[str, str]] = {
             "🔒 <b>Набор закрыт.</b> Спасибо за интерес — автор получил "
             "достаточно откликов."
         ),
+
+        # --- /suggest — обратная связь админам ---
+        "suggest_ask_text": (
+            "💡 Что хочешь предложить или сказать админам?\n\n"
+            "Напиши идею, замечание или вопрос одним сообщением "
+            "(до 2000 символов). Я передам админам.\n\n"
+            "Если передумал — /cancel"
+        ),
+        "suggest_too_short": (
+            "Слишком коротко (минимум {min} символов). Попробуй ещё раз."
+        ),
+        "suggest_thanks": (
+            "✅ Спасибо! Передал админам — они прочитают и учтут."
+        ),
+        "suggest_canceled": "Отменено.",
+        "suggest_admin_notif": (
+            "💡 <b>Новое предложение #{id}</b>\n"
+            "От: {user}\n\n"
+            "{text}\n\n"
+            "<i>Пометить обработанным:</i> <code>/suggest_done {id}</code>"
+        ),
         # Модерация — для админов
         "mod_new_listing": (
             "🆕 <b>Новое объявление #LST-{id}</b> на модерацию\n\n"
@@ -812,6 +833,27 @@ TEXTS: dict[str, dict[str, str]] = {
         "post_listing_closed_in_group": (
             "🔒 <b>Closed.</b> Thanks for the interest — the author has "
             "enough responses."
+        ),
+
+        # --- /suggest ---
+        "suggest_ask_text": (
+            "💡 What would you like to suggest or tell the admins?\n\n"
+            "Type your idea, comment or question in one message "
+            "(up to 2000 chars). I'll forward it to the admins.\n\n"
+            "Changed your mind — /cancel"
+        ),
+        "suggest_too_short": (
+            "Too short (min {min} chars). Try again."
+        ),
+        "suggest_thanks": (
+            "✅ Thanks! Forwarded to admins — they'll read and take note."
+        ),
+        "suggest_canceled": "Canceled.",
+        "suggest_admin_notif": (
+            "💡 <b>New suggestion #{id}</b>\n"
+            "From: {user}\n\n"
+            "{text}\n\n"
+            "<i>Mark resolved:</i> <code>/suggest_done {id}</code>"
         ),
         "mod_new_listing": (
             "🆕 <b>New listing #LST-{id}</b> for moderation\n\n"

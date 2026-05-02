@@ -28,6 +28,7 @@ PRIVATE_COMMANDS = [
     BotCommand(command="edit", description="Изменить профиль / Edit profile"),
     BotCommand(command="check", description="Карточка @username / Check user"),
     BotCommand(command="post", description="Объявление / Post a listing"),
+    BotCommand(command="suggest", description="💡 Идея для бота / Suggest"),
     BotCommand(command="lang", description="Язык / Language"),
     BotCommand(command="rules", description="Правила / Rules"),
     BotCommand(command="help", description="Помощь / Help"),

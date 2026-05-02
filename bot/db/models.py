@@ -106,6 +106,27 @@ class User(Base):
     )
 
 
+class Suggestion(Base):
+    """Идея/обратная связь от юзера админам.
+
+    Юзер пишет через /suggest. Админ читает список через /suggestions
+    и помечает обработанные через /suggest_done <id>.
+    """
+
+    __tablename__ = "suggestions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, index=True
+    )
+    is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class Message(Base):
     __tablename__ = "messages"
 

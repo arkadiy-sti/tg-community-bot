@@ -162,6 +162,28 @@ CREATE TABLE listing_photos (
 )
 """.strip()
 
+_SUGGESTIONS_DDL_PG = """
+CREATE TABLE suggestions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    text TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    is_resolved BOOLEAN NOT NULL DEFAULT FALSE,
+    admin_note TEXT
+)
+""".strip()
+
+_SUGGESTIONS_DDL_SQLITE = """
+CREATE TABLE suggestions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    text TEXT NOT NULL,
+    created_at TIMESTAMP,
+    is_resolved BOOLEAN NOT NULL DEFAULT 0,
+    admin_note TEXT
+)
+""".strip()
+
 
 async def run_migrations(engine: AsyncEngine) -> None:
     """Прогнать все idempotent миграции. Безопасно вызывать на каждом старте."""
@@ -188,4 +210,11 @@ async def run_migrations(engine: AsyncEngine) -> None:
             else _LISTING_PHOTOS_DDL_SQLITE
         )
         await _ensure_table(conn, "listing_photos", lp_ddl)
+        # 6. Таблица suggestions (фидбек о боте от юзеров)
+        sg_ddl = (
+            _SUGGESTIONS_DDL_PG
+            if conn.dialect.name == "postgresql"
+            else _SUGGESTIONS_DDL_SQLITE
+        )
+        await _ensure_table(conn, "suggestions", sg_ddl)
     log.info("Миграции применены")
