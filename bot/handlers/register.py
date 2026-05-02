@@ -256,10 +256,21 @@ async def _send_secondary_tags_step(
 
 @router.message(Command("register"))
 async def cmd_register(message: Message, state: FSMContext) -> None:
-    if message.chat.type != "private":
+    if message.chat.type != "private" or message.from_user is None:
         return
+    # Ban-check (защита от reroll)
+    async with get_session() as session:
+        if await users.is_tg_id_banned(session, message.from_user.id):
+            lang = await _user_lang(message.from_user.id)
+            await message.answer(t(lang, "banned_user_blocked"))
+            return
+        existing = await users.get_user(session, message.from_user.id)
     await state.clear()
     await state.set_state(RegStates.language)
+    # Если возвращающийся юзер (был soft-deleted) — мягкое приветствие
+    if existing is not None and (existing.delete_count or 0) > 0:
+        lang = normalize_lang(existing.language)
+        await message.answer(t(lang, "register_returning"))
     await message.answer(
         "Выбери язык / Choose language:",
         reply_markup=_kb_language(),

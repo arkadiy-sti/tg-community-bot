@@ -94,17 +94,101 @@ async def test_update_profile_field_partial_no_clobber(session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_user(session) -> None:
-    await users.upsert_user(session, tg_id=7, username=None, full_name="X")
+async def test_delete_user_soft(session) -> None:
+    """v3: /delete_me делает soft-delete — row остаётся, личные поля стёрты."""
+    await users.upsert_user(session, tg_id=7, username="ark", full_name="Ark")
+    await users.save_registration_v2(
+        session, tg_id=7, role="coworker", display_name="Ark",
+        contact_phone="+12125551234", consent_data=True,
+    )
     ok = await users.delete_user(session, 7)
     assert ok is True
-    assert await users.get_user(session, 7) is None
+    # Row остался, но помечен и личное стёрто
+    u = await users.get_user(session, 7)
+    assert u is not None
+    assert u.is_deleted is True
+    assert u.deleted_at is not None
+    assert u.delete_count == 1
+    assert u.display_name is None
+    assert u.contact_phone is None
+    assert u.role is None
+    # Сохранилось
+    assert u.tg_id == 7
+    assert u.joined_at is not None
+
+
+@pytest.mark.asyncio
+async def test_delete_then_reregister(session) -> None:
+    """После soft-delete юзер может снова /register — реюз row, delete_count++."""
+    await users.upsert_user(session, tg_id=8, username=None, full_name="X")
+    await users.save_registration_v2(
+        session, tg_id=8, role="coworker", display_name="Old",
+        consent_data=True,
+    )
+    await users.delete_user(session, 8)
+    # Re-register
+    u = await users.save_registration_v2(
+        session, tg_id=8, role="coworker", display_name="New",
+        consent_data=True,
+    )
+    assert u is not None
+    assert u.display_name == "New"
+    assert u.is_deleted is False
+    assert u.delete_count == 1  # счётчик удалений сохраняется
 
 
 @pytest.mark.asyncio
 async def test_delete_user_unknown(session) -> None:
     ok = await users.delete_user(session, 999999)
     assert ok is False
+
+
+# ---------------------------------------------------------------------------
+# Ban-list
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ban_unban_tg_id(session) -> None:
+    assert await users.is_tg_id_banned(session, 1234) is False
+    entry = await users.ban_tg_id(session, 1234, by_admin=999, reason="spam")
+    assert entry is not None
+    assert entry.tg_id == 1234
+    assert entry.reason == "spam"
+    assert await users.is_tg_id_banned(session, 1234) is True
+
+    # Двойной ban — None
+    again = await users.ban_tg_id(session, 1234, by_admin=999)
+    assert again is None
+
+    # Unban
+    ok = await users.unban_tg_id(session, 1234)
+    assert ok is True
+    assert await users.is_tg_id_banned(session, 1234) is False
+
+    # Unban повторно — False
+    assert await users.unban_tg_id(session, 1234) is False
+
+
+@pytest.mark.asyncio
+async def test_ban_marks_user_is_banned(session) -> None:
+    """Если у tg_id уже есть User row — ban_tg_id ставит is_banned=True."""
+    await users.upsert_user(session, tg_id=42, username=None, full_name="X")
+    await users.ban_tg_id(session, 42, by_admin=1)
+    u = await users.get_user(session, 42)
+    assert u is not None and u.is_banned is True
+    await users.unban_tg_id(session, 42)
+    u = await users.get_user(session, 42)
+    assert u is not None and u.is_banned is False
+
+
+@pytest.mark.asyncio
+async def test_list_banned(session) -> None:
+    for tg in (101, 102, 103):
+        await users.ban_tg_id(session, tg, by_admin=1)
+    items = await users.list_banned(session)
+    assert len(items) == 3
+    assert {x.tg_id for x in items} == {101, 102, 103}
 
 
 # ---------------------------------------------------------------------------

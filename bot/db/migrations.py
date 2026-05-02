@@ -35,6 +35,10 @@ _USER_COLUMNS: list[tuple[str, str, str]] = [
     ("users", "is_licensed_contractor", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("users", "license_number", "VARCHAR(64)"),
     ("users", "primary_tag_id", "INTEGER"),
+    # v3 soft-delete
+    ("users", "is_deleted", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("users", "deleted_at", "TIMESTAMP WITH TIME ZONE"),
+    ("users", "delete_count", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 _TAG_COLUMNS: list[tuple[str, str, str]] = [
@@ -184,6 +188,26 @@ CREATE TABLE suggestions (
 )
 """.strip()
 
+_BANNED_TG_IDS_DDL_PG = """
+CREATE TABLE banned_tg_ids (
+    id SERIAL PRIMARY KEY,
+    tg_id BIGINT NOT NULL UNIQUE,
+    banned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    banned_by_admin_id BIGINT NOT NULL,
+    reason TEXT
+)
+""".strip()
+
+_BANNED_TG_IDS_DDL_SQLITE = """
+CREATE TABLE banned_tg_ids (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tg_id BIGINT NOT NULL UNIQUE,
+    banned_at TIMESTAMP,
+    banned_by_admin_id BIGINT NOT NULL,
+    reason TEXT
+)
+""".strip()
+
 
 async def run_migrations(engine: AsyncEngine) -> None:
     """Прогнать все idempotent миграции. Безопасно вызывать на каждом старте."""
@@ -217,4 +241,11 @@ async def run_migrations(engine: AsyncEngine) -> None:
             else _SUGGESTIONS_DDL_SQLITE
         )
         await _ensure_table(conn, "suggestions", sg_ddl)
+        # 7. Таблица banned_tg_ids (постоянный бан, переживает delete+register)
+        bn_ddl = (
+            _BANNED_TG_IDS_DDL_PG
+            if conn.dialect.name == "postgresql"
+            else _BANNED_TG_IDS_DDL_SQLITE
+        )
+        await _ensure_table(conn, "banned_tg_ids", bn_ddl)
     log.info("Миграции применены")

@@ -97,6 +97,10 @@ async def _build_card(session, user: User, lang: str) -> str:
     licensed_badge = (
         t(lang, "profile_licensed_badge") if user.is_licensed_contractor else ""
     )
+    # Re-registered badge — добавляем к имени если юзер удалял профиль ранее.
+    # Видно всем (это публичная информация — модератор/контрагент могут учесть).
+    if (user.delete_count or 0) > 0:
+        licensed_badge += t(lang, "delete_count_badge", n=user.delete_count)
 
     # Приоритетный способ связи — только тип, не значение (приватность)
     if user.contact_phone:

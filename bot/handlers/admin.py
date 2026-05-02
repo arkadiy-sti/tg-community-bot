@@ -1,4 +1,4 @@
-"""Админ-команды: /ban /unban /warn /mute /stats."""
+"""Админ-команды: /ban /unban /warn /mute /stats /ban_user /unban_user /banned_list."""
 from __future__ import annotations
 
 import logging
@@ -12,6 +12,7 @@ from aiogram.types import ChatPermissions, Message
 from bot import texts
 from bot.config import get_settings
 from bot.db.database import get_session
+from bot.i18n import t
 from bot.services import users
 
 log = logging.getLogger(__name__)
@@ -138,3 +139,76 @@ async def cmd_stats(message: Message) -> None:
     await message.answer(
         texts.STATS_TEMPLATE.format(community=texts.COMMUNITY_NAME, **stats)
     )
+
+
+# ---------------------------------------------------------------------------
+# Постоянный бан по tg_id (переживает /delete_me + re-register)
+# ---------------------------------------------------------------------------
+
+
+@router.message(Command("ban_user"))
+async def cmd_ban_user(message: Message, command: CommandObject) -> None:
+    """/ban_user <tg_id> [reason] — внести tg_id в постоянный ban-list."""
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    args = (command.args or "").strip().split(maxsplit=1)
+    if not args:
+        await message.answer(t("ru", "admin_ban_usage"))
+        return
+    try:
+        tg_id = int(args[0])
+    except ValueError:
+        await message.answer(t("ru", "admin_ban_usage"))
+        return
+    reason = args[1] if len(args) > 1 else None
+    async with get_session() as session:
+        entry = await users.ban_tg_id(
+            session, tg_id,
+            by_admin=message.from_user.id, reason=reason,
+        )
+    if entry is None:
+        await message.answer(t("ru", "admin_already_banned", tg_id=tg_id))
+        return
+    await message.answer(
+        t("ru", "admin_banned_user", tg_id=tg_id, reason=(reason or "—"))
+    )
+    log.info("Admin %s banned tg_id=%s reason=%r",
+             message.from_user.id, tg_id, reason)
+
+
+@router.message(Command("unban_user"))
+async def cmd_unban_user(message: Message, command: CommandObject) -> None:
+    """/unban_user <tg_id> — снять с постоянного ban-list."""
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    arg = (command.args or "").strip()
+    try:
+        tg_id = int(arg)
+    except ValueError:
+        await message.answer(t("ru", "admin_unban_usage"))
+        return
+    async with get_session() as session:
+        ok = await users.unban_tg_id(session, tg_id)
+    if not ok:
+        await message.answer(t("ru", "admin_not_banned", tg_id=tg_id))
+        return
+    await message.answer(t("ru", "admin_unbanned_user", tg_id=tg_id))
+    log.info("Admin %s unbanned tg_id=%s", message.from_user.id, tg_id)
+
+
+@router.message(Command("banned_list"))
+async def cmd_banned_list(message: Message) -> None:
+    """/banned_list — последние 50 забаненных."""
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    async with get_session() as session:
+        items = await users.list_banned(session, limit=50)
+    if not items:
+        await message.answer(t("ru", "admin_banned_list_empty"))
+        return
+    lines = [t("ru", "admin_banned_list_header", n=len(items))]
+    for b in items:
+        when = b.banned_at.strftime("%Y-%m-%d") if b.banned_at else "—"
+        reason = b.reason or "—"
+        lines.append(f"• <code>{b.tg_id}</code> · {when} · {reason}")
+    await message.answer("\n".join(lines))

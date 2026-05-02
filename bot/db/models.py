@@ -86,6 +86,15 @@ class User(Base):
         ForeignKey("tags.id", ondelete="SET NULL"), nullable=True
     )
 
+    # v3: soft-delete — при /delete_me row сохраняется, личные поля стираются.
+    # tg_id, warnings, is_banned, joined_at — переживают delete и доступны
+    # модератору для контроля reroll-аккаунтов.
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    delete_count: Mapped[int] = mapped_column(Integer, default=0)
+
     messages: Mapped[list["Message"]] = relationship(
         "Message", back_populates="user", cascade="all, delete-orphan"
     )
@@ -104,6 +113,25 @@ class User(Base):
     primary_tag: Mapped["Tag | None"] = relationship(
         "Tag", foreign_keys=[primary_tag_id]
     )
+
+
+class BannedTgId(Base):
+    """Постоянный бан по tg_id — переживает /delete_me + re-register.
+
+    Защита от reroll-аккаунтов: даже если плохой актор удалит свой профиль
+    и заново сделает /register, его tg_id остаётся в этой таблице и бот
+    откажет в регистрации/использовании.
+    """
+
+    __tablename__ = "banned_tg_ids"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tg_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    banned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+    banned_by_admin_id: Mapped[int] = mapped_column(BigInteger)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Suggestion(Base):

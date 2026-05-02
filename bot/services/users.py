@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.db.models import User
+from bot.db.models import BannedTgId, User
 
 
 async def upsert_user(
@@ -180,6 +180,10 @@ async def save_registration_v2(
     if consent_data:
         user.consent_at = now
     user.registered_at = now
+    # v3 soft-delete: при re-register снимаем флаг (delete_count сохраняется
+    # как метка модератору о повторных удалениях)
+    user.is_deleted = False
+    user.deleted_at = None
     await session.commit()
     return user
 
@@ -212,13 +216,116 @@ async def update_profile_field(
 
 
 async def delete_user(session: AsyncSession, tg_id: int) -> bool:
-    """Полное удаление пользователя (каскадно: tags, listings, subscriptions)."""
+    """Soft-delete: чистим личные поля, помечаем is_deleted=True.
+
+    Сохраняем: tg_id, joined_at, warnings, is_banned, captcha_passed, language
+    Стираем: display_name, area, bio, contact_*, role, primary_tag_id,
+             is_licensed_contractor, license_number, consent_*
+    Каскад user_tags — physical delete (теги вернутся при re-register).
+
+    Активные объявления юзера переводятся в status='closed'.
+    """
     user = await get_user(session, tg_id)
     if user is None:
         return False
-    await session.delete(user)
+    now = datetime.now(timezone.utc)
+
+    # Чистим личные поля
+    user.display_name = None
+    user.area = None
+    user.bio = None
+    user.contact_phone = None
+    user.contact_whatsapp = None
+    user.contact_email = None
+    user.role = None
+    user.primary_tag_id = None
+    user.is_licensed_contractor = False
+    user.license_number = None
+    user.consent_data = False
+    user.consent_notifications = False
+    user.consent_at = None
+    user.is_deleted = True
+    user.deleted_at = now
+    user.delete_count = (user.delete_count or 0) + 1
+    user.registered_at = None
+
+    # Удаляем теги (это связи, не данные — вернутся при re-register)
+    from bot.db.models import UserTag, Listing
+    await session.execute(
+        UserTag.__table__.delete().where(UserTag.user_id == user.id)
+    )
+
+    # Активные объявления → closed (чтобы не висели в группе)
+    await session.execute(
+        update(Listing)
+        .where(Listing.user_id == user.id, Listing.status == "approved")
+        .values(status="closed")
+    )
+
     await session.commit()
     return True
+
+
+# ---------------------------------------------------------------------------
+# Ban-list (постоянный бан по tg_id, переживает delete+register)
+# ---------------------------------------------------------------------------
+
+
+async def is_tg_id_banned(session: AsyncSession, tg_id: int) -> bool:
+    """True если tg_id в banned_tg_ids."""
+    rs = await session.execute(
+        select(BannedTgId).where(BannedTgId.tg_id == tg_id)
+    )
+    return rs.scalar_one_or_none() is not None
+
+
+async def ban_tg_id(
+    session: AsyncSession, tg_id: int, *,
+    by_admin: int, reason: str | None = None,
+) -> BannedTgId | None:
+    """Внести tg_id в ban-list. Возвращает BannedTgId или None если уже забанен."""
+    rs = await session.execute(
+        select(BannedTgId).where(BannedTgId.tg_id == tg_id)
+    )
+    existing = rs.scalar_one_or_none()
+    if existing is not None:
+        return None
+    entry = BannedTgId(
+        tg_id=tg_id,
+        banned_by_admin_id=by_admin,
+        reason=reason,
+    )
+    session.add(entry)
+    # Также пометим User.is_banned=True если есть row
+    user = await get_user(session, tg_id)
+    if user is not None:
+        user.is_banned = True
+    await session.commit()
+    await session.refresh(entry)
+    return entry
+
+
+async def unban_tg_id(session: AsyncSession, tg_id: int) -> bool:
+    """Снять с ban-list. Возвращает True если был забанен."""
+    rs = await session.execute(
+        select(BannedTgId).where(BannedTgId.tg_id == tg_id)
+    )
+    entry = rs.scalar_one_or_none()
+    if entry is None:
+        return False
+    await session.delete(entry)
+    user = await get_user(session, tg_id)
+    if user is not None:
+        user.is_banned = False
+    await session.commit()
+    return True
+
+
+async def list_banned(session: AsyncSession, limit: int = 50) -> list[BannedTgId]:
+    rs = await session.execute(
+        select(BannedTgId).order_by(BannedTgId.banned_at.desc()).limit(limit)
+    )
+    return list(rs.scalars().all())
 
 
 async def list_users_for_broadcast(

@@ -27,6 +27,12 @@ async def _user_lang(tg_id: int | None) -> str:
 async def cmd_start(message: Message) -> None:
     if message.chat.type != "private" or message.from_user is None:
         return
+    # Ban-check
+    async with get_session() as session:
+        if await users.is_tg_id_banned(session, message.from_user.id):
+            lang = await _user_lang(message.from_user.id)
+            await message.answer(t(lang, "banned_user_blocked"))
+            return
     lang = await _user_lang(message.from_user.id)
     name = message.from_user.first_name or ("друг" if lang == "ru" else "friend")
     community = t(lang, "community_name")

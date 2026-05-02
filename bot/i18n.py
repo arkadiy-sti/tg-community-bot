@@ -404,6 +404,28 @@ TEXTS: dict[str, dict[str, str]] = {
             "{text}\n\n"
             "<i>Пометить обработанным:</i> <code>/suggest_done {id}</code>"
         ),
+
+        # --- Ban-list ---
+        "banned_user_blocked": (
+            "🚫 Доступ к боту ограничен администратором.\n\n"
+            "Если считаешь это ошибкой — обратись к админу группы напрямую."
+        ),
+        "register_returning": (
+            "👋 С возвращением! Я нашёл твой прошлый профиль и восстановил его. "
+            "Можешь обновить данные, или они останутся прежними."
+        ),
+        "delete_count_badge": " 🔄 Re-registered {n}×",
+        "admin_ban_usage": (
+            "Использование: <code>/ban_user &lt;tg_id&gt; [причина]</code>\n"
+            "Узнать tg_id юзера: ответом на его сообщение → <code>/whoami</code>"
+        ),
+        "admin_unban_usage": "Использование: <code>/unban_user &lt;tg_id&gt;</code>",
+        "admin_banned_user": "🔨 Пользователь tg_id=<code>{tg_id}</code> забанен. Причина: {reason}",
+        "admin_already_banned": "⚠️ tg_id=<code>{tg_id}</code> уже в ban-list.",
+        "admin_unbanned_user": "✅ tg_id=<code>{tg_id}</code> разбанен.",
+        "admin_not_banned": "❌ tg_id=<code>{tg_id}</code> не в ban-list.",
+        "admin_banned_list_empty": "📭 Ban-list пуст.",
+        "admin_banned_list_header": "🚫 <b>Ban-list (последние {n}):</b>",
         # Модерация — для админов
         "mod_new_listing": (
             "🆕 <b>Новое объявление #LST-{id}</b> на модерацию\n\n"
@@ -855,6 +877,25 @@ TEXTS: dict[str, dict[str, str]] = {
             "{text}\n\n"
             "<i>Mark resolved:</i> <code>/suggest_done {id}</code>"
         ),
+
+        # --- Ban-list ---
+        "banned_user_blocked": (
+            "🚫 Access to the bot has been restricted by an administrator.\n\n"
+            "If you believe this is a mistake, contact the group admin directly."
+        ),
+        "register_returning": (
+            "👋 Welcome back! I found your previous profile and restored it. "
+            "You can update fields or keep them as they were."
+        ),
+        "delete_count_badge": " 🔄 Re-registered {n}×",
+        "admin_ban_usage": "Usage: <code>/ban_user &lt;tg_id&gt; [reason]</code>",
+        "admin_unban_usage": "Usage: <code>/unban_user &lt;tg_id&gt;</code>",
+        "admin_banned_user": "🔨 User tg_id=<code>{tg_id}</code> banned. Reason: {reason}",
+        "admin_already_banned": "⚠️ tg_id=<code>{tg_id}</code> is already in ban-list.",
+        "admin_unbanned_user": "✅ tg_id=<code>{tg_id}</code> unbanned.",
+        "admin_not_banned": "❌ tg_id=<code>{tg_id}</code> is not in ban-list.",
+        "admin_banned_list_empty": "📭 Ban-list is empty.",
+        "admin_banned_list_header": "🚫 <b>Ban-list (last {n}):</b>",
         "mod_new_listing": (
             "🆕 <b>New listing #LST-{id}</b> for moderation\n\n"
             "From: {author}\n\n"
