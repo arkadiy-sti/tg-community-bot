@@ -1,7 +1,7 @@
 from aiogram import Router
 
 from bot.handlers import (
-    admin, broadcast, common, edit, post, post_moderation, profile,
+    admin, broadcast, common, deals, edit, post, post_moderation, profile,
     register, suggest, welcome,
 )
 
@@ -9,7 +9,7 @@ from bot.handlers import (
 def get_main_router() -> Router:
     """Собирает все роутеры в один — порядок важен.
 
-    Роутеры с FSM (register, edit, post, suggest) ставим до common,
+    Роутеры с FSM (register, edit, post, suggest, deals) ставим до common,
     иначе FSM-сообщения могут уйти в catch-all хэндлеры.
     """
     root = Router(name="root")
@@ -18,6 +18,7 @@ def get_main_router() -> Router:
     root.include_router(edit.router)
     root.include_router(post.router)
     root.include_router(post_moderation.router)
+    root.include_router(deals.router)
     root.include_router(suggest.router)
     root.include_router(profile.router)
     root.include_router(admin.router)

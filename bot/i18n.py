@@ -426,6 +426,54 @@ TEXTS: dict[str, dict[str, str]] = {
         "admin_not_banned": "❌ tg_id=<code>{tg_id}</code> не в ban-list.",
         "admin_banned_list_empty": "📭 Ban-list пуст.",
         "admin_banned_list_header": "🚫 <b>Ban-list (последние {n}):</b>",
+
+        # --- Сделки и фидбэк ---
+        "deals_list_empty": (
+            "📭 У тебя пока нет активных сделок.\n\n"
+            "Сделка появится когда:\n"
+            "• кто-то откликнется на твоё /post и ты нажмёшь «✅ Нанял этого»\n"
+            "• ты откликнешься на чужое объявление и автор тебя выберет"
+        ),
+        "deals_list_header": "🤝 <b>Твои сделки:</b>\n",
+        "deals_item_open": (
+            "<b>#{id}</b> · с <b>{partner}</b> · {date}\n"
+            "Статус: 🟢 в работе"
+        ),
+        "deals_item_closed_my_review": (
+            "<b>#{id}</b> · с <b>{partner}</b> · {date}\n"
+            "Статус: ✅ закрыта · ✓ ты оставил отзыв"
+        ),
+        "deals_item_closed_no_review": (
+            "<b>#{id}</b> · с <b>{partner}</b> · {date}\n"
+            "Статус: ✅ закрыта · ⏳ ждём твой отзыв"
+        ),
+        "deal_btn_close_review": "✅ Закрыть и оценить #{id}",
+        "deal_btn_review": "📝 Оставить отзыв #{id}",
+        "feedback_ask_rating": (
+            "⭐ Оцени работу с <b>{partner}</b>:\n"
+            "1 — плохо · 5 — отлично"
+        ),
+        "feedback_ask_tags": (
+            "🏷 Отметь теги (можно несколько). Когда закончишь — «✅ Готово»."
+        ),
+        "feedback_ask_comment": (
+            "💬 Комментарий (необязательно — нажми «⏭ Пропустить»):"
+        ),
+        "feedback_thanks": (
+            "✅ Спасибо за отзыв! Облако и рейтинг в профиле обновлены."
+        ),
+        "feedback_partner_notified": (
+            "📩 <b>{partner}</b> закрыл сделку #{id} и оставил отзыв.\n"
+            "Оставь свой отзыв через /my_deals — это поможет рейтингу обоих."
+        ),
+        "feedback_already_left": (
+            "✓ Ты уже оставил отзыв на эту сделку."
+        ),
+        "feedback_canceled": "Отменено.",
+        "feedback_btn_done": "✅ Готово ({n})",
+        "feedback_btn_skip": "⏭ Пропустить",
+        "feedback_btn_cancel": "✖ Отмена",
+        "feedback_need_rating": "Поставь оценку 1–5.",
         # Модерация — для админов
         "mod_new_listing": (
             "🆕 <b>Новое объявление #LST-{id}</b> на модерацию\n\n"
@@ -896,6 +944,54 @@ TEXTS: dict[str, dict[str, str]] = {
         "admin_not_banned": "❌ tg_id=<code>{tg_id}</code> is not in ban-list.",
         "admin_banned_list_empty": "📭 Ban-list is empty.",
         "admin_banned_list_header": "🚫 <b>Ban-list (last {n}):</b>",
+
+        # --- Deals & feedback ---
+        "deals_list_empty": (
+            "📭 No active deals yet.\n\n"
+            "A deal appears when:\n"
+            "• someone responds to your /post and you tap «✅ Hire this one»\n"
+            "• you respond to someone's listing and the author picks you"
+        ),
+        "deals_list_header": "🤝 <b>Your deals:</b>\n",
+        "deals_item_open": (
+            "<b>#{id}</b> · with <b>{partner}</b> · {date}\n"
+            "Status: 🟢 in progress"
+        ),
+        "deals_item_closed_my_review": (
+            "<b>#{id}</b> · with <b>{partner}</b> · {date}\n"
+            "Status: ✅ closed · ✓ you left a review"
+        ),
+        "deals_item_closed_no_review": (
+            "<b>#{id}</b> · with <b>{partner}</b> · {date}\n"
+            "Status: ✅ closed · ⏳ waiting for your review"
+        ),
+        "deal_btn_close_review": "✅ Close and review #{id}",
+        "deal_btn_review": "📝 Leave review #{id}",
+        "feedback_ask_rating": (
+            "⭐ Rate your experience with <b>{partner}</b>:\n"
+            "1 — bad · 5 — excellent"
+        ),
+        "feedback_ask_tags": (
+            "🏷 Pick tags (multiple ok). Tap «✅ Done» when finished."
+        ),
+        "feedback_ask_comment": (
+            "💬 Comment (optional — tap «⏭ Skip»):"
+        ),
+        "feedback_thanks": (
+            "✅ Thanks for the review! Cloud and rating updated in profile."
+        ),
+        "feedback_partner_notified": (
+            "📩 <b>{partner}</b> closed deal #{id} and left a review.\n"
+            "Leave your own via /my_deals — helps both ratings."
+        ),
+        "feedback_already_left": (
+            "✓ You already reviewed this deal."
+        ),
+        "feedback_canceled": "Canceled.",
+        "feedback_btn_done": "✅ Done ({n})",
+        "feedback_btn_skip": "⏭ Skip",
+        "feedback_btn_cancel": "✖ Cancel",
+        "feedback_need_rating": "Pick a rating 1–5.",
         "mod_new_listing": (
             "🆕 <b>New listing #LST-{id}</b> for moderation\n\n"
             "From: {author}\n\n"
