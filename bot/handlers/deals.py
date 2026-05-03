@@ -155,15 +155,15 @@ async def cmd_my_deals(message: Message) -> None:
 
 
 def _kb_rating() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="⭐", callback_data="dl:rate:1"),
-        InlineKeyboardButton(text="⭐⭐", callback_data="dl:rate:2"),
-        InlineKeyboardButton(text="⭐⭐⭐", callback_data="dl:rate:3"),
-        InlineKeyboardButton(text="⭐⭐⭐⭐", callback_data="dl:rate:4"),
-        InlineKeyboardButton(text="⭐⭐⭐⭐⭐", callback_data="dl:rate:5"),
-    ], [
-        InlineKeyboardButton(text="✖ Отмена", callback_data="dl:cancel"),
-    ]])
+    """Описательные кнопки по одной в ряд — без обрезки на мобильных."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⭐⭐⭐⭐⭐ Отлично", callback_data="dl:rate:5")],
+        [InlineKeyboardButton(text="⭐⭐⭐⭐ Хорошо", callback_data="dl:rate:4")],
+        [InlineKeyboardButton(text="⭐⭐⭐ Нормально", callback_data="dl:rate:3")],
+        [InlineKeyboardButton(text="⭐⭐ Так себе", callback_data="dl:rate:2")],
+        [InlineKeyboardButton(text="⭐ Плохо", callback_data="dl:rate:1")],
+        [InlineKeyboardButton(text="✖ Отмена", callback_data="dl:cancel")],
+    ])
 
 
 def _kb_feedback_tags(

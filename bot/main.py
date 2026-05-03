@@ -22,25 +22,25 @@ from bot.middlewares.antispam import AntispamMiddleware
 
 
 PRIVATE_COMMANDS = [
-    BotCommand(command="start", description="Начать / Restart"),
-    BotCommand(command="register", description="Регистрация / Register"),
-    BotCommand(command="profile", description="Мой профиль / My profile"),
-    BotCommand(command="edit", description="Изменить профиль / Edit profile"),
-    BotCommand(command="check", description="Карточка @username / Check user"),
-    BotCommand(command="post", description="Объявление / Post a listing"),
+    BotCommand(command="start", description="🚀 Начать / Restart"),
+    BotCommand(command="register", description="✍️ Регистрация / Register"),
+    BotCommand(command="profile", description="👤 Мой профиль / My profile"),
+    BotCommand(command="edit", description="✏️ Изменить профиль / Edit"),
+    BotCommand(command="check", description="🔍 Карточка @username / Check"),
+    BotCommand(command="post", description="📢 Объявление / Post a listing"),
     BotCommand(command="my_deals", description="🤝 Мои сделки / My deals"),
     BotCommand(command="suggest", description="💡 Идея для бота / Suggest"),
-    BotCommand(command="lang", description="Язык / Language"),
-    BotCommand(command="rules", description="Правила / Rules"),
-    BotCommand(command="help", description="Помощь / Help"),
-    BotCommand(command="delete_me", description="Удалить профиль / Delete profile"),
+    BotCommand(command="lang", description="🌐 Язык / Language"),
+    BotCommand(command="rules", description="📜 Правила / Rules"),
+    BotCommand(command="help", description="ℹ️ Помощь / Help"),
+    BotCommand(command="delete_me", description="🗑 Удалить профиль / Delete"),
 ]
 
 
 GROUP_COMMANDS = [
-    BotCommand(command="rules", description="Правила группы / Group rules"),
-    BotCommand(command="report", description="Пожаловаться / Report"),
-    BotCommand(command="help", description="Помощь / Help"),
+    BotCommand(command="rules", description="📜 Правила группы / Rules"),
+    BotCommand(command="report", description="🚨 Пожаловаться / Report"),
+    BotCommand(command="help", description="ℹ️ Помощь / Help"),
 ]
 
 
