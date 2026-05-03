@@ -147,8 +147,8 @@ async def cmd_stats(message: Message) -> None:
 
 
 @router.message(Command("ban_user"))
-async def cmd_ban_user(message: Message, command: CommandObject) -> None:
-    """/ban_user <tg_id> [reason] — внести tg_id в постоянный ban-list."""
+async def cmd_ban_user(message: Message, command: CommandObject, bot: Bot) -> None:
+    """/ban_user <tg_id> [reason] — постоянный бан + кик из группы."""
     if not _is_admin(message.from_user.id if message.from_user else None):
         return
     args = (command.args or "").strip().split(maxsplit=1)
@@ -169,16 +169,45 @@ async def cmd_ban_user(message: Message, command: CommandObject) -> None:
     if entry is None:
         await message.answer(t("ru", "admin_already_banned", tg_id=tg_id))
         return
+
+    # Кик из группы — best-effort
+    settings = get_settings()
+    group_kicked = False
+    group_err: str | None = None
+    if settings.main_chat_id:
+        try:
+            await bot.ban_chat_member(
+                chat_id=settings.main_chat_id, user_id=tg_id,
+            )
+            group_kicked = True
+            log.info("Banned tg_id=%s in group %s",
+                     tg_id, settings.main_chat_id)
+        except TelegramBadRequest as e:
+            group_err = str(e)
+            log.warning("Group ban failed for tg_id=%s: %s", tg_id, e)
+        except Exception as e:
+            group_err = str(e)
+            log.warning("Group ban exception for tg_id=%s: %s", tg_id, e)
+
+    extra = ""
+    if settings.main_chat_id:
+        extra = (
+            "\n👮 Кикнут из группы." if group_kicked
+            else f"\n⚠️ Из группы выкинуть не удалось: {group_err}"
+        )
     await message.answer(
         t("ru", "admin_banned_user", tg_id=tg_id, reason=(reason or "—"))
+        + extra
     )
-    log.info("Admin %s banned tg_id=%s reason=%r",
-             message.from_user.id, tg_id, reason)
+    log.info("Admin %s banned tg_id=%s reason=%r group_kicked=%s",
+             message.from_user.id, tg_id, reason, group_kicked)
 
 
 @router.message(Command("unban_user"))
-async def cmd_unban_user(message: Message, command: CommandObject) -> None:
-    """/unban_user <tg_id> — снять с постоянного ban-list."""
+async def cmd_unban_user(
+    message: Message, command: CommandObject, bot: Bot
+) -> None:
+    """/unban_user <tg_id> — снять с ban-list + разбанить в группе."""
     if not _is_admin(message.from_user.id if message.from_user else None):
         return
     arg = (command.args or "").strip()
@@ -192,7 +221,21 @@ async def cmd_unban_user(message: Message, command: CommandObject) -> None:
     if not ok:
         await message.answer(t("ru", "admin_not_banned", tg_id=tg_id))
         return
-    await message.answer(t("ru", "admin_unbanned_user", tg_id=tg_id))
+
+    # Разбан в группе — best-effort
+    settings = get_settings()
+    group_msg = ""
+    if settings.main_chat_id:
+        try:
+            await bot.unban_chat_member(
+                chat_id=settings.main_chat_id, user_id=tg_id,
+                only_if_banned=True,
+            )
+            group_msg = "\n👤 Разбанен в группе (может вернуться сам)."
+        except Exception as e:
+            log.warning("Group unban exception for tg_id=%s: %s", tg_id, e)
+
+    await message.answer(t("ru", "admin_unbanned_user", tg_id=tg_id) + group_msg)
     log.info("Admin %s unbanned tg_id=%s", message.from_user.id, tg_id)
 
 

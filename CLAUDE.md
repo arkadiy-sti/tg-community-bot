@@ -4,7 +4,7 @@
 > Если нужна история чата сверх того что здесь — спроси у Аркадия.
 > Этот файл обновляется в конце каждого значимого блока работы.
 
-_Последнее обновление: 2026-04-29 (после soft-delete + ban-list)_
+_Последнее обновление: 2026-04-29 (soft-delete + ban-list с group enforcement; re-register badge admin-only)_
 
 ---
 
@@ -148,7 +148,8 @@ tests/
 - ✅ Cap откликов `num_people + 3` с авто-expire и удалением кнопки в группе
 - ✅ Welcome-сообщения с инвайтом в группу
 - ✅ Меню команд через `set_my_commands`, `/whichchat` для админа
-- ✅ Soft-delete + ban-list (`/ban_user /unban_user /banned_list`)
+- ✅ Soft-delete + ban-list (`/ban_user /unban_user /banned_list`); ban_user также кикает из MAIN_CHAT_ID, unban_user возвращает доступ
+- ✅ Re-registered бейдж в /check виден **только админам** (`viewer_is_admin` параметр в `_build_card`); в /profile никогда
 - ✅ `/suggest` обратная связь юзеры→админы
 
 **Seek-ветка `/post` (Ищу работу) — закомментирована** в `_kb_kind`, ждёт набора аудитории заказчиков.

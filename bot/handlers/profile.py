@@ -40,7 +40,10 @@ def _label_field(tag: Tag, lang: str) -> str:
     return tag.label_ru if lang == "ru" else tag.label_en
 
 
-async def _build_card(session, user: User, lang: str) -> str:
+async def _build_card(
+    session, user: User, lang: str,
+    *, viewer_is_admin: bool = False,
+) -> str:
     role_label = _ROLE_LABELS.get(lang, _ROLE_LABELS["ru"]).get(
         user.role or "", user.role or "—"
     )
@@ -97,9 +100,9 @@ async def _build_card(session, user: User, lang: str) -> str:
     licensed_badge = (
         t(lang, "profile_licensed_badge") if user.is_licensed_contractor else ""
     )
-    # Re-registered badge — добавляем к имени если юзер удалял профиль ранее.
-    # Видно всем (это публичная информация — модератор/контрагент могут учесть).
-    if (user.delete_count or 0) > 0:
+    # Re-registered бейдж — ТОЛЬКО для админа (модератору важно видеть
+    # повторные регистрации, обычным юзерам и самому юзеру — нет).
+    if viewer_is_admin and (user.delete_count or 0) > 0:
         licensed_badge += t(lang, "delete_count_badge", n=user.delete_count)
 
     # Приоритетный способ связи — только тип, не значение (приватность)
@@ -184,12 +187,18 @@ async def cmd_check(message: Message, command: CommandObject) -> None:
             select(User).where(func.lower(User.username) == arg)
         )
         target = rs.scalar_one_or_none()
+        from bot.config import get_settings
+        viewer_is_admin = (
+            message.from_user.id in get_settings().admin_ids
+        )
         if target is None or not target.role:
             await message.answer(
                 {"ru": "Пользователь не найден или не зарегистрирован.",
                  "en": "User not found or not registered."}[my_lang]
             )
             return
-        text = await _build_card(session, target, my_lang)
+        text = await _build_card(
+            session, target, my_lang, viewer_is_admin=viewer_is_admin,
+        )
 
     await message.answer(text)
