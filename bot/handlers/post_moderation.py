@@ -641,9 +641,17 @@ async def cb_respond(callback: CallbackQuery) -> None:
                 reply_markup=kb_for_author,
                 disable_web_page_preview=True,
             )
+            log.info(
+                "Notify author OK: listing=%s author_tg_id=%s responder_tg_id=%s "
+                "response_id=%s count=%s/%s",
+                listing_id, author_tg_id, responder_tg_id,
+                response_id, responses_count, needed,
+            )
         except Exception as e:
-            log.warning("Не удалось уведомить автора tg_id=%s: %s",
-                        author_tg_id, e)
+            log.warning(
+                "Notify author FAILED: listing=%s author_tg_id=%s err=%s",
+                listing_id, author_tg_id, e,
+            )
 
     # DM responder-у — карточка автора + контакт-кнопки
     if callback.bot:
@@ -818,14 +826,17 @@ async def cb_close_listing(callback: CallbackQuery) -> None:
             await callback.answer("Доступно только автору объявления.",
                                   show_alert=True)
             return
-        if listing.status not in ("approved", "expired"):
+        if listing.status not in ("approved", "expired", "pending"):
             await callback.answer(
-                f"Объявление в статусе {listing.status}.", show_alert=True,
+                f"Объявление уже в статусе {listing.status}.", show_alert=True,
             )
             return
+        was_published = listing.status in ("approved", "expired")
         listing.status = "closed"
         await session.commit()
-        await _close_group_message(callback.bot, listing)
+        # Группу-сообщение редактируем только если оно было опубликовано
+        if was_published:
+            await _close_group_message(callback.bot, listing)
 
     if callback.message and callback.message.reply_markup:
         try:

@@ -327,7 +327,8 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "post_approved_user": (
             "🎉 Твоё объявление опубликовано в группе <b>Co-Workers Bay Area</b>!\n\n"
-            "Когда кто-то откликнется — я тебе сразу напишу."
+            "Когда кто-то откликнется — я тебе сразу напишу.\n"
+            "Управление объявлениями: /my_posts"
         ),
         "post_rejected_user_with_reason": (
             "❌ Твоё объявление отклонено модератором.\n\n"
@@ -474,6 +475,19 @@ TEXTS: dict[str, dict[str, str]] = {
         "feedback_btn_skip": "⏭ Пропустить",
         "feedback_btn_cancel": "✖ Отмена",
         "feedback_need_rating": "Поставь оценку 1–5.",
+
+        # --- /my_posts: управление своими объявлениями ---
+        "my_posts_empty": (
+            "📭 У тебя пока нет объявлений.\n"
+            "Создать новое: /post"
+        ),
+        "my_posts_header": "📋 <b>Твои объявления</b> (последние 20):\n",
+        "my_posts_btn_close": "🔒 Закрыть #LST-{id}",
+        "my_posts_status_pending": "⏳ ждёт модерации",
+        "my_posts_status_approved": "🟢 опубликовано",
+        "my_posts_status_closed": "🔒 закрыто",
+        "my_posts_status_rejected": "❌ отклонено",
+        "my_posts_status_expired": "⌛ истекло",
         # Модерация — для админов
         "mod_new_listing": (
             "🆕 <b>Новое объявление #LST-{id}</b> на модерацию\n\n"
@@ -848,7 +862,8 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "post_approved_user": (
             "🎉 Your listing is published in <b>Co-Workers Bay Area</b>!\n\n"
-            "I'll DM you the moment someone responds."
+            "I'll DM you the moment someone responds.\n"
+            "Manage your listings: /my_posts"
         ),
         "post_rejected_user_with_reason": (
             "❌ Your listing was rejected by a moderator.\n\n"
@@ -992,6 +1007,19 @@ TEXTS: dict[str, dict[str, str]] = {
         "feedback_btn_skip": "⏭ Skip",
         "feedback_btn_cancel": "✖ Cancel",
         "feedback_need_rating": "Pick a rating 1–5.",
+
+        # --- /my_posts ---
+        "my_posts_empty": (
+            "📭 No listings yet.\n"
+            "Create new: /post"
+        ),
+        "my_posts_header": "📋 <b>Your listings</b> (last 20):\n",
+        "my_posts_btn_close": "🔒 Close #LST-{id}",
+        "my_posts_status_pending": "⏳ pending moderation",
+        "my_posts_status_approved": "🟢 published",
+        "my_posts_status_closed": "🔒 closed",
+        "my_posts_status_rejected": "❌ rejected",
+        "my_posts_status_expired": "⌛ expired",
         "mod_new_listing": (
             "🆕 <b>New listing #LST-{id}</b> for moderation\n\n"
             "From: {author}\n\n"

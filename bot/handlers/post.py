@@ -582,6 +582,59 @@ async def _render_preview_safe(
 # ---------------------------------------------------------------------------
 
 
+@router.message(Command("my_posts"))
+async def cmd_my_posts(message: Message) -> None:
+    """Список своих объявлений с быстрым «Закрыть»."""
+    if message.chat.type != "private" or message.from_user is None:
+        return
+    async with get_session() as session:
+        me = await users.get_user(session, message.from_user.id)
+        if me is None or me.role != "coworker":
+            lang = normalize_lang(me.language if me else None)
+            await message.answer(t(lang, "post_only_coworkers"))
+            return
+        lang = normalize_lang(me.language)
+        from sqlalchemy import select
+        from bot.db.models import Listing
+        rs = await session.execute(
+            select(Listing)
+            .where(Listing.user_id == me.id)
+            .order_by(Listing.created_at.desc())
+            .limit(20)
+        )
+        listings = list(rs.scalars().all())
+
+    if not listings:
+        await message.answer(t(lang, "my_posts_empty"))
+        return
+
+    blocks: list[str] = [t(lang, "my_posts_header")]
+    rows: list[list[InlineKeyboardButton]] = []
+    for lst in listings:
+        date = lst.created_at.strftime("%Y-%m-%d") if lst.created_at else "—"
+        kind_emoji = "💼" if lst.kind == "offer" else "🔎"
+        status_label = t(lang, f"my_posts_status_{lst.status}")
+        snippet = (lst.text or "")[:80]
+        if len(lst.text or "") > 80:
+            snippet += "…"
+        blocks.append(
+            f"{kind_emoji} <b>#LST-{lst.id}</b> · {date} · {status_label}\n"
+            f"{snippet}"
+        )
+        # Кнопка «Закрыть» только для активных и pending
+        if lst.status in ("pending", "approved", "expired"):
+            rows.append([InlineKeyboardButton(
+                text=t(lang, "my_posts_btn_close", id=lst.id),
+                callback_data=f"mp:close:{lst.id}",  # reuse существующего хендлера
+            )])
+
+    await message.answer(
+        "\n\n".join(blocks),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows) if rows else None,
+        disable_web_page_preview=True,
+    )
+
+
 @router.message(Command("post"))
 async def cmd_post(message: Message, state: FSMContext) -> None:
     if message.chat.type != "private" or message.from_user is None:

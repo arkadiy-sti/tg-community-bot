@@ -28,9 +28,10 @@ PRIVATE_COMMANDS = [
     BotCommand(command="edit", description="✏️ Изменить профиль / Edit"),
     BotCommand(command="check", description="🔍 Карточка @username / Check"),
     BotCommand(command="post", description="📢 Объявление / Post a listing"),
+    BotCommand(command="my_posts", description="📋 Мои объявления / My posts"),
     BotCommand(command="my_deals", description="🤝 Мои сделки / My deals"),
     BotCommand(command="suggest", description="💡 Идея для бота / Suggest"),
-    BotCommand(command="lang", description="🌐 Язык / Language"),
+    # /lang команда работает, но скрыта из меню до полной локализации EN-веток
     BotCommand(command="rules", description="📜 Правила / Rules"),
     BotCommand(command="help", description="ℹ️ Помощь / Help"),
     BotCommand(command="delete_me", description="🗑 Удалить профиль / Delete"),
