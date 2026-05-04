@@ -3,7 +3,11 @@ from __future__ import annotations
 
 from aiogram import Router
 from aiogram.filters import Command, CommandStart
-from aiogram.types import Message
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 
 from bot import texts
 from bot.config import get_settings
@@ -36,9 +40,16 @@ async def cmd_start(message: Message) -> None:
     lang = await _user_lang(message.from_user.id)
     name = message.from_user.first_name or ("друг" if lang == "ru" else "friend")
     community = t(lang, "community_name")
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text=t(lang, "btn_join_group"),
+            url=COMMUNITY_INVITE_URL,
+        )
+    ]])
     await message.answer(
         t(lang, "start_private", name=name, community=community,
           invite=COMMUNITY_INVITE_URL),
+        reply_markup=kb,
         disable_web_page_preview=True,
     )
 

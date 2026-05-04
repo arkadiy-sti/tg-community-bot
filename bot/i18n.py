@@ -26,21 +26,35 @@ TEXTS: dict[str, dict[str, str]] = {
         "lang_set_en": "🇺🇸 English",
         "start_private": (
             "Привет, {name}! 👋\n\n"
-            "Это бот сообщества <b>{community}</b> — площадка для русскоязычных "
-            "хэндименов и заказчиков в Bay Area.\n\n"
-            "Что ты можешь:\n"
+            "Это бот сообщества <b>{community}</b> — группа для "
+            "русскоязычных хэндименов, контракторов и заказчиков в Bay Area.\n\n"
+            "<b>Зачем эта группа</b>\n"
+            "Сообщество людей, которые развивают свой бизнес и растут вместе. "
+            "Здесь и опытные профессионалы, и те, кто только начинает.\n\n"
+            "Мы создаём условия чтобы каждый:\n"
+            "• Делился опытом и учился новому\n"
+            "• Находил общие проекты, единомышленников и друзей\n"
+            "• Получал помощь и помогал другим\n\n"
+            "Тем, кто щедро делится знаниями — респект и уважение.\n\n"
+            "<b>Что ты можешь</b>\n"
             "• Зарегистрироваться как <b>Coworker</b> — профиль с тегами, "
-            "рейтингом и уведомлениями о подходящих проектах\n"
-            "• Или зайти как <b>Гость</b> — просто читать группу\n"
-            "• Размещать и находить работу\n"
-            "• Оставлять и читать отзывы\n\n"
-            "👥 Группа: <a href=\"{invite}\">Co-Workers Bay Area</a>\n\n"
-            "Команды:\n"
+            "рейтингом и уведомлениями\n"
+            "• Или зайти как <b>Гость</b> — читать группу без профиля\n"
+            "• Размещать объявления о работе через /post\n"
+            "• Откликаться на чужие объявления\n"
+            "• Оставлять отзывы после сделок\n\n"
+            "<b>Команды</b> (всё в меню ☰):\n"
             "/register — регистрация\n"
             "/profile — мой профиль\n"
             "/post — разместить объявление\n"
-            "/check — проверить контрагента\n"
-            "/help — помощь"
+            "/my_posts — мои объявления\n"
+            "/my_deals — мои сделки\n"
+            "/check @username — посмотреть участника\n"
+            "/suggest — идея или обратная связь админам\n"
+            "/help — все команды\n\n"
+            "<i>В будущем появятся платные подписки: AI-помощник, "
+            "push-уведомления по подходящим проектам, онлайн-встречи "
+            "и многое другое.</i>"
         ),
         "help": (
             "<b>Команды</b>\n"
@@ -52,12 +66,30 @@ TEXTS: dict[str, dict[str, str]] = {
             "/rules — правила\n"
         ),
         "rules": (
-            "<b>Правила {community}</b>\n\n"
-            "1. Уважаем друг друга. Оскорбления, дискриминация → бан.\n"
-            "2. Только реальные работы и реальные исполнители.\n"
-            "3. Спам и реклама запрещены.\n"
-            "4. Платные фичи — для подписчиков ($20 физлица / $200 компании в месяц).\n"
-            "5. Все споры — в личку админа."
+            "<b>Правила сообщества {community}</b>\n\n"
+            "🎯 <b>Что это за группа</b>\n"
+            "{community} — сообщество людей, которые развивают свой бизнес "
+            "и растут вместе. Здесь и опытные профессионалы, и те, кто только "
+            "начинает. Мы помогаем найти сотрудников и помощников "
+            "<b>внутри сообщества</b> — это не платформа лидогенерации.\n\n"
+            "📜 <b>Правила</b>\n\n"
+            "<b>1. Уважение к каждому.</b> Оскорбления, дискриминация по "
+            "любому признаку (религия, национальность, пол, возраст, статус), "
+            "разжигание вражды, троллинг — мгновенный бан без предупреждений.\n\n"
+            "<b>2. Реальные профили и реальные объявления.</b> Регистрируем "
+            "только настоящие данные. Публикуем только реальные работы и услуги.\n\n"
+            "<b>3. Никакого спама и рекламы в группе.</b> Если хочешь "
+            "предложить продукт, услугу или сделать необычное объявление — "
+            "напиши боту через /suggest или админу в личку. Мы рассмотрим.\n\n"
+            "<b>4. Сложные вопросы и споры — в личку админу или через "
+            "/suggest.</b> Не выясняем отношения в общем чате.\n\n"
+            "<b>5. Не захламляем ленту.</b> Однотипные сообщения, повторы "
+            "и флуд — уважаем чужое время.\n\n"
+            "🔮 <b>Скоро (платные подписки)</b>\n"
+            "AI-агент для подбора проектов · push по подходящим работам · "
+            "онлайн-встречи и разборы кейсов · Verified-бейдж "
+            "лицензированного контрактора · и другое.\n\n"
+            "❓ Вопросы и обратная связь — /suggest"
         ),
 
         # --- Welcome / Captcha ---
@@ -488,6 +520,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "my_posts_status_closed": "🔒 закрыто",
         "my_posts_status_rejected": "❌ отклонено",
         "my_posts_status_expired": "⌛ истекло",
+
+        # --- Кнопка-инвайт в группу (используется в /start, register_done) ---
+        "btn_join_group": "👥 Зайти в группу Co-Workers Bay Area",
+        "btn_open_my_posts": "📋 Мои объявления",
+        "btn_open_my_deals": "🤝 Мои сделки",
         # Модерация — для админов
         "mod_new_listing": (
             "🆕 <b>Новое объявление #LST-{id}</b> на модерацию\n\n"
@@ -630,21 +667,23 @@ TEXTS: dict[str, dict[str, str]] = {
         "lang_set_en": "🇺🇸 English",
         "start_private": (
             "Hi, {name}! 👋\n\n"
-            "This is the bot for the <b>{community}</b> community — a marketplace "
-            "for Russian-speaking handymen and clients in the Bay Area.\n\n"
-            "What you can do:\n"
-            "• Register as a <b>Coworker</b> — profile with tags, rating, "
-            "and project notifications\n"
-            "• Or join as a <b>Guest</b> — just read the group\n"
-            "• Post and find jobs\n"
-            "• Leave and read reviews\n\n"
-            "👥 Group: <a href=\"{invite}\">Co-Workers Bay Area</a>\n\n"
-            "Commands:\n"
-            "/register — register\n"
-            "/profile — my profile\n"
-            "/post — post a listing\n"
-            "/check — look up another member\n"
-            "/help — help"
+            "This is the bot for <b>{community}</b> — a community for "
+            "Russian-speaking handymen, contractors and clients in the Bay Area.\n\n"
+            "<b>What we're about</b>\n"
+            "A community of people who grow their business and themselves. "
+            "Both seasoned pros and those just starting out. We help you find "
+            "coworkers and helpers <i>inside</i> this community — it's not a "
+            "lead-gen platform.\n\n"
+            "<b>What you can do</b>\n"
+            "• Register as <b>Coworker</b> — profile with tags, rating, alerts\n"
+            "• Or join as <b>Guest</b> — read the group, no profile\n"
+            "• Post jobs via /post, respond to others'\n"
+            "• Leave reviews after deals\n\n"
+            "<b>Commands</b> (all in menu ☰):\n"
+            "/register · /profile · /post · /my_posts · /my_deals\n"
+            "/check @username · /suggest · /help\n\n"
+            "<i>Paid subscriptions coming soon: AI-helper, push notifications "
+            "for matching projects, online meetings and more.</i>"
         ),
         "help": (
             "<b>Commands</b>\n"
@@ -656,12 +695,28 @@ TEXTS: dict[str, dict[str, str]] = {
             "/rules — rules\n"
         ),
         "rules": (
-            "<b>{community} rules</b>\n\n"
-            "1. Respect each other. Insults or discrimination → ban.\n"
-            "2. Real jobs and real contractors only.\n"
-            "3. No spam, no advertising.\n"
-            "4. Paid features for subscribers ($20/mo individuals, $200/mo companies).\n"
-            "5. Disputes — DM the admin."
+            "<b>{community} community rules</b>\n\n"
+            "🎯 <b>What this group is</b>\n"
+            "A community for people growing their business together. "
+            "Pros and beginners side by side. We help you find coworkers "
+            "<b>within</b> the community — not a lead-gen platform.\n\n"
+            "📜 <b>Rules</b>\n\n"
+            "<b>1. Respect.</b> Insults, discrimination of any kind "
+            "(religion, ethnicity, gender, age, status), inciting hostility, "
+            "trolling — instant ban, no warnings.\n\n"
+            "<b>2. Real profiles, real listings.</b> Only register with real "
+            "data. Only post real work and services.\n\n"
+            "<b>3. No spam or ads in the group.</b> Want to promote a product "
+            "or post something unusual — message the bot via /suggest or "
+            "admin DM. We'll review.\n\n"
+            "<b>4. Disputes — DM admin or via /suggest.</b> Don't argue "
+            "publicly.\n\n"
+            "<b>5. Don't clutter the feed.</b> Same-type messages, repeats, "
+            "flood — respect others' time.\n\n"
+            "🔮 <b>Coming soon (paid subscriptions)</b>\n"
+            "AI agent for project matching · push for matching jobs · "
+            "online meetings · Verified contractor badge · and more.\n\n"
+            "❓ Questions — /suggest"
         ),
         "welcome_captcha": (
             "Hi, {name}! 👋\n\n"
@@ -1020,6 +1075,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "my_posts_status_closed": "🔒 closed",
         "my_posts_status_rejected": "❌ rejected",
         "my_posts_status_expired": "⌛ expired",
+
+        # --- Group invite button ---
+        "btn_join_group": "👥 Join Co-Workers Bay Area",
+        "btn_open_my_posts": "📋 My listings",
+        "btn_open_my_deals": "🤝 My deals",
         "mod_new_listing": (
             "🆕 <b>New listing #LST-{id}</b> for moderation\n\n"
             "From: {author}\n\n"

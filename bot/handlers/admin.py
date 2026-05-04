@@ -239,6 +239,96 @@ async def cmd_unban_user(
     log.info("Admin %s unbanned tg_id=%s", message.from_user.id, tg_id)
 
 
+# ---------------------------------------------------------------------------
+# Редактирование отзывов (админ может убрать ошибочный негатив/спам-отзыв)
+# ---------------------------------------------------------------------------
+
+
+@router.message(Command("feedback_view"))
+async def cmd_feedback_view(message: Message, command: CommandObject) -> None:
+    """/feedback_view @username — список всех отзывов НА юзера с ID для удаления."""
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    arg = (command.args or "").strip().lstrip("@").lower()
+    if not arg:
+        await message.answer(
+            "Использование: <code>/feedback_view @username</code>"
+        )
+        return
+
+    from sqlalchemy import select, func as sa_func
+    from bot.db.models import Feedback, User
+
+    async with get_session() as session:
+        rs = await session.execute(
+            select(User).where(sa_func.lower(User.username) == arg)
+        )
+        target = rs.scalar_one_or_none()
+        if target is None:
+            await message.answer(f"❌ Юзер @{arg} не найден.")
+            return
+        rs2 = await session.execute(
+            select(Feedback)
+            .where(Feedback.to_user_id == target.id)
+            .order_by(Feedback.created_at.desc())
+            .limit(50)
+        )
+        feedbacks = list(rs2.scalars().all())
+        if not feedbacks:
+            await message.answer(f"📭 На @{arg} нет отзывов.")
+            return
+
+        lines = [f"💬 <b>Отзывы на @{arg}</b> (последние {len(feedbacks)}):\n"]
+        for fb in feedbacks:
+            from_rs = await session.execute(
+                select(User).where(User.id == fb.from_user_id)
+            )
+            from_user = from_rs.scalar_one_or_none()
+            from_label = (
+                f"@{from_user.username}" if from_user and from_user.username
+                else (from_user.display_name if from_user else "—")
+            )
+            date = fb.created_at.strftime("%Y-%m-%d") if fb.created_at else "—"
+            stars = "⭐" * fb.rating
+            comment = (fb.comment or "—")[:120]
+            lines.append(
+                f"<b>#{fb.id}</b> · {stars} · {date} · от {from_label}\n"
+                f"💬 {comment}\n"
+                f"Удалить: <code>/feedback_remove {fb.id}</code>"
+            )
+        await message.answer("\n\n".join(lines))
+
+
+@router.message(Command("feedback_remove"))
+async def cmd_feedback_remove(message: Message, command: CommandObject) -> None:
+    """/feedback_remove <id> — удалить отзыв (cascade убирает FeedbackTag)."""
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    arg = (command.args or "").strip()
+    try:
+        fid = int(arg)
+    except ValueError:
+        await message.answer("Использование: <code>/feedback_remove &lt;id&gt;</code>")
+        return
+    from bot.db.models import Feedback
+    async with get_session() as session:
+        fb = await session.get(Feedback, fid)
+        if fb is None:
+            await message.answer(f"❌ Отзыв #{fid} не найден.")
+            return
+        to_user_id = fb.to_user_id
+        await session.delete(fb)
+        await session.commit()
+    log.info(
+        "Admin %s removed feedback #%s (target user_id=%s)",
+        message.from_user.id, fid, to_user_id,
+    )
+    await message.answer(
+        f"✅ Отзыв #{fid} удалён. Облако и рейтинг обновятся при следующем "
+        "просмотре /profile или /check."
+    )
+
+
 @router.message(Command("banned_list"))
 async def cmd_banned_list(message: Message) -> None:
     """/banned_list — последние 50 забаненных."""

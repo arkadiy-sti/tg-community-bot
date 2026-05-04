@@ -360,8 +360,15 @@ async def cb_role(callback: CallbackQuery, state: FSMContext) -> None:
             )
         await state.clear()
         if callback.message:
+            kb = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(
+                    text=t(lang, "btn_join_group"),
+                    url=COMMUNITY_INVITE_URL,
+                )
+            ]])
             await callback.message.edit_text(
                 t(lang, "register_guest_done", invite=COMMUNITY_INVITE_URL),
+                reply_markup=kb,
                 disable_web_page_preview=True,
             )
         await callback.answer()
@@ -825,8 +832,15 @@ async def _finalize_registration(
         callback.from_user.id, u.role, u.is_licensed_contractor,
     )
     if callback.message:
+        kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text=t(lang, "btn_join_group"),
+                url=COMMUNITY_INVITE_URL,
+            )
+        ]])
         await callback.message.edit_text(
             t(lang, "register_done", invite=COMMUNITY_INVITE_URL),
+            reply_markup=kb,
             disable_web_page_preview=True,
         )
     await callback.answer()
