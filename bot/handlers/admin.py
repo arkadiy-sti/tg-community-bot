@@ -160,6 +160,10 @@ async def cmd_ban_user(message: Message, command: CommandObject, bot: Bot) -> No
     except ValueError:
         await message.answer(t("ru", "admin_ban_usage"))
         return
+    # Защита: нельзя банить админа (защита от self-ban при тестах)
+    if tg_id in get_settings().admin_ids:
+        await message.answer(t("ru", "admin_cant_ban_admin", tg_id=tg_id))
+        return
     reason = args[1] if len(args) > 1 else None
     async with get_session() as session:
         entry = await users.ban_tg_id(

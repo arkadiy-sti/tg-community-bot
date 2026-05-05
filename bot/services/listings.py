@@ -421,3 +421,75 @@ async def reject_listing(
     listing.reject_reason = reason
     await session.commit()
     return listing
+
+
+# ---------------------------------------------------------------------------
+# Auto-expire (раз в сутки фоновая задача)
+# ---------------------------------------------------------------------------
+
+
+async def find_expired_listings(
+    session: AsyncSession, *, days: int = LISTING_AUTO_EXPIRE_DAYS,
+) -> list[Listing]:
+    """Approved-объявления старше N дней — кандидаты на expire."""
+    threshold = datetime.now(timezone.utc) - timedelta(days=days)
+    rs = await session.execute(
+        select(Listing).where(
+            Listing.status == "approved",
+            Listing.created_at < threshold,
+        )
+    )
+    return list(rs.scalars().all())
+
+
+async def auto_expire_old_listings(
+    session: AsyncSession, *,
+    days: int = LISTING_AUTO_EXPIRE_DAYS,
+    bot=None,
+    group_chat_id: int | None = None,
+) -> int:
+    """Найти approved старше N дней, пометить expired + закрыть в группе.
+
+    Возвращает кол-во помеченных. bot и group_chat_id опциональны —
+    при их отсутствии просто меняем status в БД (тесты используют без бота).
+    """
+    candidates = await find_expired_listings(session, days=days)
+    if not candidates:
+        return 0
+    expired = 0
+    for listing in candidates:
+        listing.status = "expired"
+        expired += 1
+    await session.commit()
+    # Best-effort редактирование сообщений в группе
+    if bot is not None and group_chat_id:
+        for listing in candidates:
+            if not listing.channel_message_id:
+                continue
+            try:
+                await bot.edit_message_reply_markup(
+                    chat_id=group_chat_id,
+                    message_id=listing.channel_message_id,
+                    reply_markup=None,
+                )
+            except Exception as e:
+                log.info(
+                    "auto_expire: edit_reply_markup failed listing=%s: %s",
+                    listing.id, e,
+                )
+            try:
+                await bot.send_message(
+                    chat_id=group_chat_id,
+                    text=(
+                        "⌛ <b>Срок объявления истёк (14 дней).</b>\n"
+                        "Если работа всё ещё актуальна — создай новое "
+                        "через /post у бота."
+                    ),
+                    reply_to_message_id=listing.channel_message_id,
+                )
+            except Exception as e:
+                log.info(
+                    "auto_expire: send_message failed listing=%s: %s",
+                    listing.id, e,
+                )
+    return expired

@@ -459,6 +459,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "admin_not_banned": "❌ tg_id=<code>{tg_id}</code> не в ban-list.",
         "admin_banned_list_empty": "📭 Ban-list пуст.",
         "admin_banned_list_header": "🚫 <b>Ban-list (последние {n}):</b>",
+        "admin_cant_ban_admin": (
+            "⛔ Нельзя забанить админа (tg_id=<code>{tg_id}</code> в ADMIN_IDS).\n"
+            "Если нужно — сначала убери его из .env и рестартни бота."
+        ),
 
         # --- Сделки и фидбэк ---
         "deals_list_empty": (
@@ -1014,6 +1018,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "admin_not_banned": "❌ tg_id=<code>{tg_id}</code> is not in ban-list.",
         "admin_banned_list_empty": "📭 Ban-list is empty.",
         "admin_banned_list_header": "🚫 <b>Ban-list (last {n}):</b>",
+        "admin_cant_ban_admin": (
+            "⛔ Can't ban an admin (tg_id=<code>{tg_id}</code> is in ADMIN_IDS).\n"
+            "If needed — remove from .env first and restart the bot."
+        ),
 
         # --- Deals & feedback ---
         "deals_list_empty": (

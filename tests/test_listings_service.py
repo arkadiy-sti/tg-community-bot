@@ -150,6 +150,50 @@ async def test_count_recent_listings(session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_auto_expire_old_listings(session) -> None:
+    """Approved-объявления старше N дней должны помечаться expired."""
+    from datetime import datetime, timedelta, timezone
+    u = await users.upsert_user(session, tg_id=99, username=None, full_name="X")
+    await users.save_registration_v2(
+        session, tg_id=99, role="coworker", display_name="X", consent_data=True,
+    )
+    u = await users.get_user(session, 99)
+
+    loc = Tag(slug="loc_x99", category="location", label_ru="Y", label_en="Y")
+    skill = Tag(slug="sk_x99", category="skill", label_ru="Y", label_en="Y")
+    session.add_all([loc, skill])
+    await session.flush()
+
+    # Старое объявление — approved, 20 дней назад
+    old = await listings_svc.create_listing(
+        session, user_id=u.id, kind="offer", text="старое",
+        location_tag_ids=[loc.id], skill_tag_ids=[skill.id],
+        duration="day", urgency="flexible",
+    )
+    old.status = "approved"
+    old.created_at = datetime.now(timezone.utc) - timedelta(days=20)
+    await session.commit()
+
+    # Свежее approved — 1 день
+    fresh = await listings_svc.create_listing(
+        session, user_id=u.id, kind="offer", text="свежее",
+        location_tag_ids=[loc.id], skill_tag_ids=[skill.id],
+        duration="day", urgency="flexible",
+    )
+    fresh.status = "approved"
+    fresh.created_at = datetime.now(timezone.utc) - timedelta(days=1)
+    await session.commit()
+
+    n = await listings_svc.auto_expire_old_listings(session, days=14)
+    assert n == 1
+
+    await session.refresh(old)
+    await session.refresh(fresh)
+    assert old.status == "expired"
+    assert fresh.status == "approved"
+
+
+@pytest.mark.asyncio
 async def test_approve_reject(session) -> None:
     u = await users.upsert_user(session, tg_id=5, username=None, full_name="X")
     await users.save_registration_v2(

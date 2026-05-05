@@ -258,9 +258,14 @@ async def _send_secondary_tags_step(
 async def cmd_register(message: Message, state: FSMContext) -> None:
     if message.chat.type != "private" or message.from_user is None:
         return
-    # Ban-check (защита от reroll)
+    # Ban-check (защита от reroll) — но админов всегда пропускаем
+    from bot.config import get_settings
+    settings = get_settings()
     async with get_session() as session:
-        if await users.is_tg_id_banned(session, message.from_user.id):
+        if (
+            message.from_user.id not in settings.admin_ids
+            and await users.is_tg_id_banned(session, message.from_user.id)
+        ):
             lang = await _user_lang(message.from_user.id)
             await message.answer(t(lang, "banned_user_blocked"))
             return
