@@ -21,6 +21,7 @@ router = Router(name="profile")
 _ROLE_LABELS = {
     "ru": {
         "coworker": "🛠 Coworker",
+        "customer": "🏠 Заказчик",
         "guest": "👀 Гость",
         "handyman": "🔧 Исполнитель",          # legacy
         "individual": "🏠 Заказчик (физлицо)",  # legacy
@@ -28,6 +29,7 @@ _ROLE_LABELS = {
     },
     "en": {
         "coworker": "🛠 Coworker",
+        "customer": "🏠 Customer",
         "guest": "👀 Guest",
         "handyman": "🔧 Contractor",
         "individual": "🏠 Individual client",
@@ -150,7 +152,10 @@ async def cmd_profile(message: Message) -> None:
             await message.answer(t(lang, "profile_not_registered"))
             return
         lang = normalize_lang(user.language)
-        text = await _build_card(session, user, lang)
+        if user.role == "customer":
+            text = await _build_customer_card(session, user, lang)
+        else:
+            text = await _build_card(session, user, lang)
     await message.answer(text)
 
 
@@ -178,12 +183,42 @@ async def cmd_my_subscription(message: Message) -> None:
     ))
 
 
+async def _build_customer_card(session, user: User, lang: str) -> str:
+    """Упрощённая карточка для Customer: имя, контакт, кол-во объявлений."""
+    from sqlalchemy import func as sa_func
+    from bot.db.models import Listing
+
+    listings_count = await session.scalar(
+        select(sa_func.count(Listing.id)).where(
+            Listing.user_id == user.id,
+            Listing.status.in_(("approved", "closed")),
+        )
+    ) or 0
+
+    if user.contact_phone:
+        contact_pref = t(lang, "profile_contact_phone")
+    elif user.contact_whatsapp:
+        contact_pref = t(lang, "profile_contact_whatsapp")
+    elif user.contact_email:
+        contact_pref = t(lang, "profile_contact_email")
+    else:
+        contact_pref = t(lang, "profile_contact_none")
+
+    return t(
+        lang,
+        "profile_card_customer",
+        name=user.display_name or user.full_name or "—",
+        contact_pref=contact_pref,
+        listings_count=listings_count,
+    )
+
+
 def _can_view_profiles(user: User | None) -> bool:
-    """True если user имеет полный профиль (coworker / legacy)."""
+    """True если user имеет полный профиль Coworker (или legacy роли)."""
     if user is None or not user.role:
         return False
-    # Гости — нет; coworker и legacy роли (handyman/individual/company) — да
-    return user.role != "guest"
+    # Coworker и legacy роли — да; guest и customer — нет
+    return user.role in ("coworker", "handyman", "individual", "company")
 
 
 @router.message(Command("check"))
@@ -227,8 +262,12 @@ async def cmd_check(message: Message, command: CommandObject) -> None:
                  "en": "User not found or not registered."}[my_lang]
             )
             return
-        text = await _build_card(
-            session, target, my_lang, viewer_is_admin=viewer_is_admin,
-        )
+        # Customer — упрощённая карточка без рейтинга и тегов
+        if target.role == "customer":
+            text = await _build_customer_card(session, target, my_lang)
+        else:
+            text = await _build_card(
+                session, target, my_lang, viewer_is_admin=viewer_is_admin,
+            )
 
     await message.answer(text)

@@ -154,7 +154,7 @@ async def save_registration_v2(
     session: AsyncSession,
     tg_id: int,
     *,
-    role: str,                      # 'coworker' | 'guest'
+    role: str,                      # 'coworker' | 'customer' | 'guest'
     display_name: str | None = None,
     area: str | None = None,
     bio: str | None = None,
@@ -166,11 +166,11 @@ async def save_registration_v2(
     consent_data: bool = False,
     consent_notifications: bool = False,
 ) -> User | None:
-    """Сохранить v2-регистрацию. consent_data обязателен для role=coworker."""
+    """Сохранить v2-регистрацию. consent_data обязателен для role=coworker/customer."""
     user = await get_user(session, tg_id)
     if user is None:
         return None
-    if role == "coworker" and not consent_data:
+    if role in ("coworker", "customer") and not consent_data:
         # без согласия не сохраняем профиль
         return None
     now = datetime.now(timezone.utc)

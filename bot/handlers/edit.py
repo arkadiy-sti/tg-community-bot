@@ -91,6 +91,24 @@ def _kb_edit_menu(lang: str) -> InlineKeyboardMarkup:
     )
 
 
+def _kb_edit_menu_customer(lang: str) -> InlineKeyboardMarkup:
+    """Урезанное меню /edit для Customer: только имя и контакт."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=t(lang, "edit_field_name"),
+                                     callback_data="edit:f:name"),
+                InlineKeyboardButton(text=t(lang, "edit_field_contact"),
+                                     callback_data="edit:f:contact"),
+            ],
+            [
+                InlineKeyboardButton(text=t(lang, "edit_cancel"),
+                                     callback_data="edit:cancel"),
+            ],
+        ]
+    )
+
+
 def _kb_tag_grid(
     tag_list,
     lang: str,
@@ -162,8 +180,13 @@ async def cmd_edit(message: Message, state: FSMContext) -> None:
     lang = normalize_lang(u.language)
     await state.clear()
     await state.set_state(EditStates.menu)
-    await state.update_data(lang=lang)
-    await message.answer(t(lang, "edit_menu"), reply_markup=_kb_edit_menu(lang))
+    await state.update_data(lang=lang, user_role=u.role)
+    # Customer — видит только имя и контакт
+    if u.role == "customer":
+        await message.answer(t(lang, "edit_menu"),
+                             reply_markup=_kb_edit_menu_customer(lang))
+    else:
+        await message.answer(t(lang, "edit_menu"), reply_markup=_kb_edit_menu(lang))
 
 
 @router.callback_query(EditStates.menu, F.data == "edit:cancel")

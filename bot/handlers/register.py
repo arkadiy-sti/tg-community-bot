@@ -84,8 +84,8 @@ def _kb_role(lang: str) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text=t(lang, "role_coworker"),
                                   callback_data="reg:role:coworker")],
-            [InlineKeyboardButton(text=t(lang, "role_guest"),
-                                  callback_data="reg:role:guest")],
+            [InlineKeyboardButton(text=t(lang, "role_customer"),
+                                  callback_data="reg:role:customer")],
         ]
     )
 
@@ -145,19 +145,22 @@ def _kb_tag_grid(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def _kb_contact_type(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=t(lang, "contact_type_phone"),
-                                  callback_data="reg:contact:phone")],
-            [InlineKeyboardButton(text=t(lang, "contact_type_whatsapp"),
-                                  callback_data="reg:contact:whatsapp")],
-            [InlineKeyboardButton(text=t(lang, "contact_type_email"),
-                                  callback_data="reg:contact:email")],
-            [InlineKeyboardButton(text=t(lang, "register_ask_skip"),
-                                  callback_data="reg:contact:skip")],
-        ]
-    )
+def _kb_contact_type(lang: str, *, required: bool = False) -> InlineKeyboardMarkup:
+    """Клавиатура выбора типа контакта.
+    required=True — нет кнопки «Пропустить» (для Customer, где контакт обязателен).
+    """
+    rows: list[list[InlineKeyboardButton]] = [
+        [InlineKeyboardButton(text=t(lang, "contact_type_phone"),
+                              callback_data="reg:contact:phone")],
+        [InlineKeyboardButton(text=t(lang, "contact_type_whatsapp"),
+                              callback_data="reg:contact:whatsapp")],
+        [InlineKeyboardButton(text=t(lang, "contact_type_email"),
+                              callback_data="reg:contact:email")],
+    ]
+    if not required:
+        rows.append([InlineKeyboardButton(text=t(lang, "register_ask_skip"),
+                                          callback_data="reg:contact:skip")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def _kb_licensed(lang: str) -> InlineKeyboardMarkup:
@@ -348,38 +351,13 @@ async def cb_role(callback: CallbackQuery, state: FSMContext) -> None:
     if callback.data is None or callback.from_user is None:
         return
     role = callback.data.split(":")[2]
-    if role not in {"coworker", "guest"}:
+    if role not in {"coworker", "customer"}:
         await callback.answer("?", show_alert=False)
         return
     data = await state.get_data()
     lang = data.get("lang", "ru")
 
-    if role == "guest":
-        # Гость — сохраняем минимально и закрываем FSM
-        async with get_session() as session:
-            await users.save_registration_v2(
-                session,
-                tg_id=callback.from_user.id,
-                role="guest",
-                consent_data=False,  # для гостя не требуем
-            )
-        await state.clear()
-        if callback.message:
-            kb = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(
-                    text=t(lang, "btn_join_group"),
-                    url=COMMUNITY_INVITE_URL,
-                )
-            ]])
-            await callback.message.edit_text(
-                t(lang, "register_guest_done", invite=COMMUNITY_INVITE_URL),
-                reply_markup=kb,
-                disable_web_page_preview=True,
-            )
-        await callback.answer()
-        return
-
-    await state.update_data(role="coworker")
+    await state.update_data(role=role)
     await state.set_state(RegStates.name)
     if callback.message:
         await callback.message.edit_text(t(lang, "register_ask_name"))
@@ -404,8 +382,17 @@ async def step_name(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(name=name)
-    await state.set_state(RegStates.area)
-    await message.answer(t(lang, "register_ask_area"))
+
+    # Customer — пропускаем area/теги/bio/лицензию, сразу к контакту
+    if data.get("role") == "customer":
+        await state.set_state(RegStates.contact_type)
+        await message.answer(
+            t(lang, "register_ask_contact_type"),
+            reply_markup=_kb_contact_type(lang, required=True),
+        )
+    else:
+        await state.set_state(RegStates.area)
+        await message.answer(t(lang, "register_ask_area"))
 
 
 # ---------------------------------------------------------------------------
@@ -590,6 +577,12 @@ async def cb_contact_type(callback: CallbackQuery, state: FSMContext) -> None:
     lang = data.get("lang", "ru")
 
     if kind == "skip":
+        # Для customer контакт обязателен — показываем алерт
+        if data.get("role") == "customer":
+            await callback.answer(
+                t(lang, "register_contact_required"), show_alert=True
+            )
+            return
         await state.update_data(contact_kind=None)
         await state.set_state(RegStates.bio)
         if callback.message:
@@ -637,8 +630,12 @@ async def step_contact_value(message: Message, state: FSMContext) -> None:
     else:
         await state.update_data(contact_value=None)
 
-    await state.set_state(RegStates.bio)
-    await message.answer(t(lang, "register_ask_bio"))
+    # Customer — пропускаем bio/лицензию, сразу к consent
+    if data.get("role") == "customer":
+        await _go_to_consent_msg(message, state, lang)
+    else:
+        await state.set_state(RegStates.bio)
+        await message.answer(t(lang, "register_ask_bio"))
 
 
 # ---------------------------------------------------------------------------
@@ -791,6 +788,7 @@ async def _finalize_registration(
     if callback.from_user is None:
         return
     data = await state.get_data()
+    role = data.get("role", "coworker")
 
     contact_kind = data.get("contact_kind")
     contact_value = data.get("contact_value")
@@ -802,7 +800,7 @@ async def _finalize_registration(
         u = await users.save_registration_v2(
             session,
             tg_id=callback.from_user.id,
-            role="coworker",
+            role=role,
             display_name=data.get("name"),
             area=data.get("area"),
             bio=data.get("bio"),
@@ -814,7 +812,7 @@ async def _finalize_registration(
             consent_data=bool(data.get("consent_data", False)),
             consent_notifications=bool(data.get("consent_notif", False)),
         )
-        if u is not None:
+        if u is not None and role == "coworker":
             primary_id = data.get("primary_tag_id")
             secondary_ids = data.get("secondary_tag_ids", [])
             await tags_svc.replace_user_tags(
@@ -843,8 +841,10 @@ async def _finalize_registration(
                 url=COMMUNITY_INVITE_URL,
             )
         ]])
+        # Customer — отдельное welcome-сообщение
+        done_key = "register_customer_done" if role == "customer" else "register_done"
         await callback.message.edit_text(
-            t(lang, "register_done", invite=COMMUNITY_INVITE_URL),
+            t(lang, done_key, invite=COMMUNITY_INVITE_URL),
             reply_markup=kb,
             disable_web_page_preview=True,
         )

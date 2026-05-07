@@ -4,7 +4,7 @@
 > Если нужна история чата сверх того что здесь — спроси у Аркадия.
 > Этот файл обновляется в конце каждого значимого блока работы.
 
-_Последнее обновление: 2026-04-29 (подписки + 3 community-бейджа; декоратор @subscription_required готов но не подключён)_
+_Последнее обновление: 2026-05-07 (Customer-роль вместо Guest: 3-шаговая регистрация, упрощённый /post 7 шагов, гейтинг; **109 тестов зелёных**)_
 
 ---
 
@@ -91,7 +91,7 @@ tests/
 
 | Модель | Что | Особенности |
 |---|---|---|
-| `User` | юзер бота | role: coworker/guest, contact_phone/whatsapp/email (E.164), is_deleted/deleted_at/delete_count для soft-delete, primary_tag_id |
+| `User` | юзер бота | role: coworker/customer/guest (guest — legacy, новые не создаём), contact_phone/whatsapp/email (E.164), is_deleted/deleted_at/delete_count для soft-delete, primary_tag_id |
 | `BannedTgId` | постоянный бан | переживает delete+re-register, проверяется в /start и /register |
 | `Tag` | skill/location/feedback_pos/feedback_neg | is_predefined+is_approved (custom от юзеров с rate-limit) |
 | `UserTag` | M2M юзер↔тег | is_primary флаг, лимит 6 на профиль |
@@ -160,6 +160,7 @@ tests/
 - ✅ **Админские команды для исправления отзывов**: `/feedback_view @username` — список всех отзывов на юзера с ID; `/feedback_remove <id>` — удалить ошибочный отзыв (cascade убирает FeedbackTag, облако и рейтинг автоматически пересчитываются при следующем рендере).
 - ✅ **Защита админов от self-ban**: `/ban_user` отказывается банить юзера если его tg_id в `ADMIN_IDS`. И в `/start`/`/register` ban-check игнорирует админов (даже если они каким-то образом попали в `banned_tg_ids`).
 - ✅ **Auto-expire 14 дней** через фоновую asyncio-задачу `auto_expire_loop` в `bot/main.py`. Запускается через 60 сек после старта, далее каждые 24 часа. Помечает approved-объявления старше 14 дней как `expired`, редактирует сообщение в группе (убирает кнопку «Откликнуться», добавляет reply-сообщение «⌛ Срок истёк»). Параметр `LISTING_AUTO_EXPIRE_DAYS=14` в `bot/services/listings.py`.
+- ✅ **Welcome в группе после captcha** — расширенное приветствие (i18n `captcha_passed`) с описанием сообщества, списком команд бота в DM, упоминанием будущих платных фич + inline-кнопка «🤖 Открыть бота» с deep-link `https://t.me/{bot_username}?start=welcome` (имя бота берётся через `bot.me()` динамически). Реализация в `bot/handlers/welcome.py` (`on_user_passed_captcha`).
 - ✅ **Подписки + community-бейджи**:
   - Поля `User.badge_verified/badge_trusted/badge_top` (admin-assigned). Бейджи рендерятся в `/profile` и `/check` рядом с именем: ✅ Verified · 💎 Trusted Pro · 🏆 Top Coworker. Существующий 🛠 Verified contractor (auto, по `is_licensed_contractor`) остался.
   - Сервис `users.grant_subscription/revoke_subscription/get_active_subscription` — продление существующей подписки если она активна. `users.set_user_badge(tg_id, badge, value)` для бейджей. `users.KNOWN_BADGES` = ('verified', 'trusted', 'top').
@@ -167,6 +168,8 @@ tests/
   - Команда юзеру: `/my_subscription` — статус активной подписки или предложение оформить (через /suggest).
   - `bot/services/subscriptions.py` — декоратор `@subscription_required(plan="any" | "pro" | "business")` готов к использованию, но **никуда не подключён** (лимиты публикаций отложены до набора 100-200 чел в группе).
   - `Subscription` модель уже была в БД, миграции не нужны (только User badge_*).
+
+- ✅ **Customer-роль** (заменила Guest): упрощённая регистрация (3 шага: имя→контакт→согласие), упрощённый `/post` (7 шагов: район→навыки→описание→срочность→бюджет→фото→контакт), гейтинг: customer не видит /check, /edit только имя+контакт, `/profile` показывает упрощённую карточку. Legacy guest-записи в БД сохранены.
 
 **Seek-ветка `/post` (Ищу работу) — закомментирована** в `_kb_kind`, ждёт набора аудитории заказчиков.
 
@@ -177,6 +180,7 @@ tests/
 1. **Подключить декоратор `@subscription_required` к платным фичам** — после набора 100-200 чел в группе. Кандидаты: лимит публикаций (free 2/мес vs Pro безлимит), Featured Listing $50, push-уведомления по тегам, AI-агент.
 2. **Stripe** или Telegram Stars для self-service подписки (сейчас выдача только через админ /grant).
 3. **Контент-рубрики**: проект месяца, голосовалки, фоновые истории — заведутся с ростом аудитории.
+
 
 ## Стратегия монетизации $5K/мес (для подписок)
 

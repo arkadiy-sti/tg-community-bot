@@ -331,7 +331,10 @@ async def _send_skills_step(message: Message, state: FSMContext, lang: str) -> N
 
 async def _go_after_skills(message: Message, state: FSMContext, lang: str) -> None:
     data = await state.get_data()
-    if data.get("kind") == "offer":
+    # Customer — пропускает num_people/helper_kind/language/duration → сразу к описанию
+    if data.get("post_role") == "customer":
+        await _go_to_description(message, state, lang)
+    elif data.get("kind") == "offer":
         await state.set_state(PostStates.num_people)
         await message.answer(t(lang, "post_ask_num_people"),
                              reply_markup=_kb_num_people(lang))
@@ -553,14 +556,16 @@ async def _render_preview_safe(
                 f"<b>{listings_svc.label(listings_svc.LANGUAGE_SEEK_LABELS, lang, lr)}</b>"
             )
 
-    parts.append(
-        "⏱ Длительность: "
-        f"<b>{listings_svc.label(listings_svc.DURATION_LABELS, lang, data.get('duration'))}</b>"
-    )
-    parts.append(
-        "⚡ Срочность: "
-        f"<b>{listings_svc.label(listings_svc.URGENCY_LABELS, lang, data.get('urgency'))}</b>"
-    )
+    if data.get("duration"):
+        parts.append(
+            "⏱ Длительность: "
+            f"<b>{listings_svc.label(listings_svc.DURATION_LABELS, lang, data.get('duration'))}</b>"
+        )
+    if data.get("urgency"):
+        parts.append(
+            "⚡ Срочность: "
+            f"<b>{listings_svc.label(listings_svc.URGENCY_LABELS, lang, data.get('urgency'))}</b>"
+        )
     parts.append("")
     parts.append(html.escape(data.get("description") or "—"))
 
@@ -582,6 +587,11 @@ async def _render_preview_safe(
 # ---------------------------------------------------------------------------
 
 
+def _can_post(role: str | None) -> bool:
+    """True если роль позволяет публиковать объявления."""
+    return role in ("coworker", "customer", "handyman", "individual", "company")
+
+
 @router.message(Command("my_posts"))
 async def cmd_my_posts(message: Message) -> None:
     """Список своих объявлений с быстрым «Закрыть»."""
@@ -589,7 +599,7 @@ async def cmd_my_posts(message: Message) -> None:
         return
     async with get_session() as session:
         me = await users.get_user(session, message.from_user.id)
-        if me is None or me.role != "coworker":
+        if me is None or not _can_post(me.role):
             lang = normalize_lang(me.language if me else None)
             await message.answer(t(lang, "post_only_coworkers"))
             return
@@ -641,7 +651,7 @@ async def cmd_post(message: Message, state: FSMContext) -> None:
         return
     async with get_session() as session:
         u = await users.get_user(session, message.from_user.id)
-    if u is None or u.role != "coworker":
+    if u is None or not _can_post(u.role):
         lang = normalize_lang(u.language if u else None)
         await message.answer(t(lang, "post_only_coworkers"))
         return
@@ -649,12 +659,25 @@ async def cmd_post(message: Message, state: FSMContext) -> None:
     # Soft-лимит — пока только warning, не блокируем
     async with get_session() as session:
         recent = await listings_svc.count_recent_listings(session, u.id)
-    log.info("/post by tg_id=%s recent_30d=%s", message.from_user.id, recent)
+    log.info("/post by tg_id=%s role=%s recent_30d=%s",
+             message.from_user.id, u.role, recent)
 
     await state.clear()
     await state.update_data(lang=lang)
-    await state.set_state(PostStates.kind)
-    await message.answer(t(lang, "post_kind_choose"), reply_markup=_kb_kind(lang))
+
+    # Customer — упрощённый flow: kind/num_people/helper/language/duration пропускаем
+    if u.role == "customer":
+        await state.update_data(
+            post_role="customer",
+            kind="offer",
+            num_people=1,
+            location_ids=[],
+            skill_ids=[],
+        )
+        await _send_locations_step(message, state, lang)
+    else:
+        await state.set_state(PostStates.kind)
+        await message.answer(t(lang, "post_kind_choose"), reply_markup=_kb_kind(lang))
 
 
 # ---------------------------------------------------------------------------
@@ -1096,7 +1119,14 @@ async def cb_urgency(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.message.edit_reply_markup()
         except Exception:
             pass
-        await _go_to_budget_or_description(callback.message, state, lang)
+        # Customer: urgency → budget (optional) → photos
+        # Coworker: urgency → budget (optional) → description
+        if data.get("post_role") == "customer":
+            await state.set_state(PostStates.budget)
+            await callback.message.answer(t(lang, "post_ask_budget"),
+                                          reply_markup=_kb_budget(lang))
+        else:
+            await _go_to_budget_or_description(callback.message, state, lang)
     await callback.answer()
 
 
@@ -1122,7 +1152,11 @@ async def cb_budget(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.message.edit_reply_markup()
         except Exception:
             pass
-        await _go_to_description(callback.message, state, lang)
+        # Customer: budget → photos; Coworker: budget → description
+        if data.get("post_role") == "customer":
+            await _go_to_photos(callback.message, state, lang)
+        else:
+            await _go_to_description(callback.message, state, lang)
     await callback.answer()
 
 
@@ -1136,7 +1170,11 @@ async def cb_budget_skip(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.message.edit_reply_markup()
         except Exception:
             pass
-        await _go_to_description(callback.message, state, lang)
+        # Customer: budget → photos; Coworker: budget → description
+        if data.get("post_role") == "customer":
+            await _go_to_photos(callback.message, state, lang)
+        else:
+            await _go_to_description(callback.message, state, lang)
     await callback.answer()
 
 
@@ -1159,7 +1197,12 @@ async def step_description(message: Message, state: FSMContext) -> None:
         )
         return
     await state.update_data(description=desc)
-    await _go_to_photos(message, state, lang)
+    # Customer: description → urgency → budget → photos
+    # Coworker: description → photos (urgency/budget уже позади)
+    if data.get("post_role") == "customer":
+        await _go_to_urgency(message, state, lang)
+    else:
+        await _go_to_photos(message, state, lang)
 
 
 # ---------------------------------------------------------------------------

@@ -134,12 +134,14 @@ TEXTS: dict[str, dict[str, str]] = {
 
         # --- Регистрация ---
         "register_choose_role": (
-            "Выбери, как ты будешь участвовать:\n\n"
-            "🛠 <b>Coworker</b> — заполняешь профиль, получаешь предложения, "
-            "можешь публиковать и откликаться.\n"
-            "👀 <b>Гость</b> — только читаешь группу, профиль не нужен."
+            "Выбери роль:\n\n"
+            "🛠 <b>Coworker</b> — хэндимен, контрактор, мастер. Заполняешь "
+            "профиль, получаешь предложения, откликаешься на объявления.\n\n"
+            "🏠 <b>Заказчик</b> — ищешь исполнителей. Публикуешь заявки, "
+            "получаешь отклики. Регистрация занимает одну минуту."
         ),
-        "role_coworker": "🛠 Coworker",
+        "role_coworker": "🛠 Coworker (исполнитель)",
+        "role_customer": "🏠 Заказчик (нужна работа)",
         "role_guest": "👀 Гость",
         "role_handyman": "🔧 Исполнитель (handyman)",  # legacy
         "role_individual": "🏠 Заказчик (физлицо)",      # legacy
@@ -153,6 +155,21 @@ TEXTS: dict[str, dict[str, str]] = {
             "Когда захочешь стать активным участником и получать "
             "предложения о проектах — напиши /register снова и выбери "
             "<b>Coworker</b>."
+        ),
+        "register_customer_done": (
+            "🎉 <b>Готово! Добро пожаловать в Co-Workers Bay Area!</b>\n\n"
+            "Теперь ты можешь публиковать заявки на работу через /post. "
+            "Когда придут отклики — я тебе сразу напишу.\n\n"
+            "👥 Заходи в группу: <a href=\"{invite}\">Co-Workers Bay Area</a>\n\n"
+            "Что дальше:\n"
+            "• /post — разместить заявку на работу\n"
+            "• /my_posts — мои объявления\n"
+            "• /edit — изменить контакт или имя\n\n"
+            "Удачи в поиске! 🏠"
+        ),
+        "register_contact_required": (
+            "❗ Для заказчика контакт обязателен — иначе исполнители "
+            "не смогут с тобой связаться. Выбери способ связи."
         ),
         "register_ask_name": "Как тебя зовут? (имя или название компании)",
         "register_ask_area": (
@@ -304,6 +321,12 @@ TEXTS: dict[str, dict[str, str]] = {
             "Сначала зарегистрируйся как Coworker: /register\n"
             "После этого ты сможешь смотреть карточки других участников и "
             "получать предложения о подходящих проектах."
+        ),
+        "profile_card_customer": (
+            "<b>{name}</b>\n"
+            "Роль: 🏠 Заказчик\n"
+            "Способ связи: {contact_pref}\n"
+            "Объявлений: {listings_count}"
         ),
 
         # --- /post — создание объявления ---
@@ -872,12 +895,14 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_open_bot": "🤖 Open the bot",
         "captcha_failed": "Time's up — you've been kicked. Rejoin and try again.",
         "register_choose_role": (
-            "How do you want to participate?\n\n"
-            "🛠 <b>Coworker</b> — fill profile, get matched to projects, "
-            "post and reply to listings.\n"
-            "👀 <b>Guest</b> — just read the group, no profile."
+            "Choose your role:\n\n"
+            "🛠 <b>Coworker</b> — handyman, contractor, specialist. Fill profile, "
+            "get matched to projects, respond to listings.\n\n"
+            "🏠 <b>Customer</b> — looking for help. Post jobs, get responses. "
+            "Takes a minute to register."
         ),
-        "role_coworker": "🛠 Coworker",
+        "role_coworker": "🛠 Coworker (service provider)",
+        "role_customer": "🏠 Customer (need work done)",
         "role_guest": "👀 Guest",
         "role_handyman": "🔧 Contractor (handyman)",
         "role_individual": "🏠 Individual client",
@@ -890,6 +915,21 @@ TEXTS: dict[str, dict[str, str]] = {
             "👥 Join the group: <a href=\"{invite}\">Co-Workers Bay Area</a>\n\n"
             "When you want to become an active member and receive "
             "project offers — type /register again and pick <b>Coworker</b>."
+        ),
+        "register_customer_done": (
+            "🎉 <b>Done! Welcome to Co-Workers Bay Area!</b>\n\n"
+            "You can now post job requests via /post. "
+            "I'll notify you as soon as responses come in.\n\n"
+            "👥 Join the group: <a href=\"{invite}\">Co-Workers Bay Area</a>\n\n"
+            "What's next:\n"
+            "• /post — post a job request\n"
+            "• /my_posts — my listings\n"
+            "• /edit — update contact or name\n\n"
+            "Good luck! 🏠"
+        ),
+        "register_contact_required": (
+            "❗ Contact is required for customers — otherwise contractors "
+            "can't reach you. Please choose a contact method."
         ),
         "register_ask_name": "What's your name? (your name or company name)",
         "register_ask_area": (
@@ -1035,6 +1075,12 @@ TEXTS: dict[str, dict[str, str]] = {
             "Register as a Coworker first: /register\n"
             "After that you'll be able to view other members' cards and "
             "receive offers for matching projects."
+        ),
+        "profile_card_customer": (
+            "<b>{name}</b>\n"
+            "Role: 🏠 Customer\n"
+            "Contact: {contact_pref}\n"
+            "Listings: {listings_count}"
         ),
         "profile_no_subscription": "No subscription — basic features only.",
         "profile_subscription_active": "🟢 Subscription active until {until}.",
