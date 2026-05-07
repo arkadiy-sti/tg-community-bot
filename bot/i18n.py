@@ -111,9 +111,25 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "captcha_button": "✅ Я не бот",
         "captcha_passed": (
-            "Отлично, {name}! Ты в сообществе 🎉\n\n"
-            "Чтобы начать пользоваться платформой — напиши боту в личку /register"
+            "Привет, {name}! 👋 Добро пожаловать в <b>{community}</b> 🎉\n\n"
+            "<b>🏠 Что здесь происходит</b>\n"
+            "Сообщество русскоязычных хэндименов, контракторов, муверов и "
+            "заказчиков в Bay Area. Делимся опытом, находим работу, "
+            "помогаем друг другу расти.\n\n"
+            "<b>🛠 Что можно через бота</b> (в личке)\n"
+            "• /register — регистрация (Coworker или Гость)\n"
+            "• /post — разместить объявление о работе\n"
+            "• /my_posts — мои объявления\n"
+            "• /my_deals — мои сделки и отзывы\n"
+            "• /check @username — посмотреть участника\n"
+            "• /suggest — идея или вопрос админам\n\n"
+            "📜 /rules — правила сообщества (важно прочитать)\n"
+            "ℹ️ /help — все команды\n\n"
+            "<i>Скоро: AI-помощник, push-уведомления по подходящим проектам, "
+            "онлайн-встречи и другие инструменты для тех, кто развивает дело.</i>\n\n"
+            "👇 Жми кнопку ниже — открыть бота и начать."
         ),
+        "btn_open_bot": "🤖 Открыть бота",
         "captcha_failed": "Время вышло — кикнул из чата. Зайди снова и пройди проверку.",
 
         # --- Регистрация ---
@@ -835,9 +851,25 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "captcha_button": "✅ I'm not a bot",
         "captcha_passed": (
-            "Great, {name}! You're in 🎉\n\n"
-            "DM the bot /register to start using the platform."
+            "Hi, {name}! 👋 Welcome to <b>{community}</b> 🎉\n\n"
+            "<b>🏠 What this is</b>\n"
+            "A community of Russian-speaking handymen, contractors, movers, "
+            "and clients in the Bay Area. Share experience, find work, "
+            "help each other grow.\n\n"
+            "<b>🛠 What you can do via the bot</b> (in DM)\n"
+            "• /register — sign up (Coworker or Guest)\n"
+            "• /post — post a job listing\n"
+            "• /my_posts — my listings\n"
+            "• /my_deals — my deals and reviews\n"
+            "• /check @username — view a member\n"
+            "• /suggest — idea or question to admins\n\n"
+            "📜 /rules — community rules (please read)\n"
+            "ℹ️ /help — all commands\n\n"
+            "<i>Coming soon: AI helper, push notifications for matching "
+            "projects, online meetings, and more.</i>\n\n"
+            "👇 Tap below to open the bot and get started."
         ),
+        "btn_open_bot": "🤖 Open the bot",
         "captcha_failed": "Time's up — you've been kicked. Rejoin and try again.",
         "register_choose_role": (
             "How do you want to participate?\n\n"

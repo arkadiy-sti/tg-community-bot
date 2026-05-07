@@ -7,11 +7,17 @@ import logging
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import ChatMemberUpdatedFilter, IS_NOT_MEMBER, JOIN_TRANSITION
-from aiogram.types import CallbackQuery, ChatMemberUpdated
+from aiogram.types import (
+    CallbackQuery,
+    ChatMemberUpdated,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 
 from bot import texts
 from bot.config import get_settings
 from bot.db.database import get_session
+from bot.i18n import normalize_lang, t
 from bot.keyboards.inline import captcha_kb
 from bot.services import users
 from bot.services.captcha import PendingCaptcha, captcha_store
@@ -122,10 +128,31 @@ async def on_captcha_click(callback: CallbackQuery, bot: Bot) -> None:
 
     async with get_session() as session:
         await users.mark_captcha_passed(session, user_id)
+        u = await users.get_user(session, user_id)
+    lang = normalize_lang(u.language if u else None)
+    community = t(lang, "community_name")
+    name = callback.from_user.full_name or callback.from_user.first_name or "друг"
+
+    # Кнопка «Открыть бота» — deep-link к нашему боту
+    bot_url: str | None = None
+    try:
+        me = await bot.me()
+        if me.username:
+            bot_url = f"https://t.me/{me.username}?start=welcome"
+    except Exception as e:
+        log.info("Could not fetch bot username for welcome button: %s", e)
+
+    kb = None
+    if bot_url:
+        kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=t(lang, "btn_open_bot"), url=bot_url),
+        ]])
 
     try:
         await callback.message.edit_text(
-            texts.CAPTCHA_PASSED.format(name=callback.from_user.full_name)
+            t(lang, "captcha_passed", name=name, community=community),
+            reply_markup=kb,
+            disable_web_page_preview=True,
         )
     except TelegramBadRequest:
         pass
