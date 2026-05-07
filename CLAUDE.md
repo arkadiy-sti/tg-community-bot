@@ -4,7 +4,7 @@
 > Если нужна история чата сверх того что здесь — спроси у Аркадия.
 > Этот файл обновляется в конце каждого значимого блока работы.
 
-_Последнее обновление: 2026-04-29 (admin self-ban protection + auto-expire 14d через фоновую asyncio-задачу)_
+_Последнее обновление: 2026-04-29 (подписки + 3 community-бейджа; декоратор @subscription_required готов но не подключён)_
 
 ---
 
@@ -160,12 +160,23 @@ tests/
 - ✅ **Админские команды для исправления отзывов**: `/feedback_view @username` — список всех отзывов на юзера с ID; `/feedback_remove <id>` — удалить ошибочный отзыв (cascade убирает FeedbackTag, облако и рейтинг автоматически пересчитываются при следующем рендере).
 - ✅ **Защита админов от self-ban**: `/ban_user` отказывается банить юзера если его tg_id в `ADMIN_IDS`. И в `/start`/`/register` ban-check игнорирует админов (даже если они каким-то образом попали в `banned_tg_ids`).
 - ✅ **Auto-expire 14 дней** через фоновую asyncio-задачу `auto_expire_loop` в `bot/main.py`. Запускается через 60 сек после старта, далее каждые 24 часа. Помечает approved-объявления старше 14 дней как `expired`, редактирует сообщение в группе (убирает кнопку «Откликнуться», добавляет reply-сообщение «⌛ Срок истёк»). Параметр `LISTING_AUTO_EXPIRE_DAYS=14` в `bot/services/listings.py`.
+- ✅ **Подписки + community-бейджи**:
+  - Поля `User.badge_verified/badge_trusted/badge_top` (admin-assigned). Бейджи рендерятся в `/profile` и `/check` рядом с именем: ✅ Verified · 💎 Trusted Pro · 🏆 Top Coworker. Существующий 🛠 Verified contractor (auto, по `is_licensed_contractor`) остался.
+  - Сервис `users.grant_subscription/revoke_subscription/get_active_subscription` — продление существующей подписки если она активна. `users.set_user_badge(tg_id, badge, value)` для бейджей. `users.KNOWN_BADGES` = ('verified', 'trusted', 'top').
+  - Админ-команды: `/grant <tg_id> <дней> [pro|business]` (default pro), `/revoke <tg_id>`, `/grant_badge <tg_id> <verified|trusted|top>`, `/revoke_badge <tg_id> <badge>`.
+  - Команда юзеру: `/my_subscription` — статус активной подписки или предложение оформить (через /suggest).
+  - `bot/services/subscriptions.py` — декоратор `@subscription_required(plan="any" | "pro" | "business")` готов к использованию, но **никуда не подключён** (лимиты публикаций отложены до набора 100-200 чел в группе).
+  - `Subscription` модель уже была в БД, миграции не нужны (только User badge_*).
 
 **Seek-ветка `/post` (Ищу работу) — закомментирована** в `_kb_kind`, ждёт набора аудитории заказчиков.
 
 ## Pending блоки (по приоритету)
 
-1. **Подписки + декоратор** — `@subscription_required(plan='pro')`, Pro $20/мес физлица, Business $200/мес компании, ручной `/grant <user_id> <дней>` админом, потом Stripe. Это **последний крупный блок MVP** перед запуском.
+**MVP функционал закрыт.** Что осталось — пост-MVP, по мере роста аудитории:
+
+1. **Подключить декоратор `@subscription_required` к платным фичам** — после набора 100-200 чел в группе. Кандидаты: лимит публикаций (free 2/мес vs Pro безлимит), Featured Listing $50, push-уведомления по тегам, AI-агент.
+2. **Stripe** или Telegram Stars для self-service подписки (сейчас выдача только через админ /grant).
+3. **Контент-рубрики**: проект месяца, голосовалки, фоновые истории — заведутся с ростом аудитории.
 
 ## Стратегия монетизации $5K/мес (для подписок)
 

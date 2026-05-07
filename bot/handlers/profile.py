@@ -97,11 +97,17 @@ async def _build_card(
     else:
         sub_str = t(lang, "profile_no_subscription")
 
+    # Бейджи: Verified contractor (auto, по lic) + community badges (admin)
     licensed_badge = (
         t(lang, "profile_licensed_badge") if user.is_licensed_contractor else ""
     )
-    # Re-registered бейдж — ТОЛЬКО для админа (модератору важно видеть
-    # повторные регистрации, обычным юзерам и самому юзеру — нет).
+    if user.badge_verified:
+        licensed_badge += t(lang, "badge_verified")
+    if user.badge_trusted:
+        licensed_badge += t(lang, "badge_trusted")
+    if user.badge_top:
+        licensed_badge += t(lang, "badge_top")
+    # Re-registered бейдж — ТОЛЬКО для админа.
     if viewer_is_admin and (user.delete_count or 0) > 0:
         licensed_badge += t(lang, "delete_count_badge", n=user.delete_count)
 
@@ -146,6 +152,30 @@ async def cmd_profile(message: Message) -> None:
         lang = normalize_lang(user.language)
         text = await _build_card(session, user, lang)
     await message.answer(text)
+
+
+@router.message(Command("my_subscription"))
+async def cmd_my_subscription(message: Message) -> None:
+    """Показать статус активной подписки или предложение оформить."""
+    if message.chat.type != "private" or message.from_user is None:
+        return
+    from datetime import datetime, timezone
+    async with get_session() as session:
+        u = await users.get_user(session, message.from_user.id)
+        lang = normalize_lang(u.language if u else None)
+        if u is None:
+            await message.answer(t(lang, "my_subscription_inactive"))
+            return
+        sub = await users.get_active_subscription(session, u.id)
+    if sub is None:
+        await message.answer(t(lang, "my_subscription_inactive"))
+        return
+    days_left = max(0, (sub.expires_at - datetime.now(timezone.utc)).days)
+    until = sub.expires_at.strftime("%Y-%m-%d")
+    await message.answer(t(
+        lang, "my_subscription_active",
+        kind=sub.kind, until=until, days_left=days_left,
+    ))
 
 
 def _can_view_profiles(user: User | None) -> bool:

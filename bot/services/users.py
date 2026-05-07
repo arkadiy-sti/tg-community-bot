@@ -6,7 +6,15 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.db.models import BannedTgId, User
+from bot.db.models import BannedTgId, Subscription, User
+
+# Бейджи: маппинг (slug → имя поля User)
+BADGE_FIELDS: dict[str, str] = {
+    "verified": "badge_verified",
+    "trusted": "badge_trusted",
+    "top": "badge_top",
+}
+KNOWN_BADGES: tuple[str, ...] = tuple(BADGE_FIELDS.keys())
 
 
 async def upsert_user(
@@ -340,3 +348,97 @@ async def list_users_for_broadcast(
         stmt = stmt.where(User.joined_at >= now - timedelta(days=7))
     result = await session.execute(stmt)
     return [row[0] for row in result.all()]
+
+
+# ---------------------------------------------------------------------------
+# Подписки (manual grant by admin; декоратор @subscription_required в
+# bot/services/subscriptions.py использует get_active_subscription)
+# ---------------------------------------------------------------------------
+
+
+async def get_active_subscription(
+    session: AsyncSession, user_id: int,
+) -> Subscription | None:
+    """Активная (is_active=True И expires_at>now) подписка юзера, если есть."""
+    now = datetime.now(timezone.utc)
+    rs = await session.execute(
+        select(Subscription)
+        .where(
+            Subscription.user_id == user_id,
+            Subscription.is_active.is_(True),
+            Subscription.expires_at > now,
+        )
+        .order_by(Subscription.expires_at.desc())
+        .limit(1)
+    )
+    return rs.scalar_one_or_none()
+
+
+async def grant_subscription(
+    session: AsyncSession, *, tg_id: int, kind: str, days: int,
+    granted_by_tg_id: int,
+) -> Subscription | None:
+    """Выдать подписку. Если уже есть активная — продляет от её expires_at."""
+    user = await get_user(session, tg_id)
+    if user is None:
+        return None
+    now = datetime.now(timezone.utc)
+    existing = await get_active_subscription(session, user.id)
+    if existing is not None:
+        # Продлеваем существующую
+        existing.expires_at = existing.expires_at + timedelta(days=days)
+        existing.kind = kind  # обновляем план если изменился
+        await session.commit()
+        return existing
+    sub = Subscription(
+        user_id=user.id,
+        kind=kind,
+        started_at=now,
+        expires_at=now + timedelta(days=days),
+        granted_by_tg_id=granted_by_tg_id,
+        is_active=True,
+    )
+    session.add(sub)
+    await session.commit()
+    await session.refresh(sub)
+    return sub
+
+
+async def revoke_subscription(session: AsyncSession, tg_id: int) -> bool:
+    """Отозвать активную подписку. True если была отозвана."""
+    user = await get_user(session, tg_id)
+    if user is None:
+        return False
+    sub = await get_active_subscription(session, user.id)
+    if sub is None:
+        return False
+    sub.is_active = False
+    await session.commit()
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Community badges (admin-assigned)
+# ---------------------------------------------------------------------------
+
+
+async def set_user_badge(
+    session: AsyncSession, *, tg_id: int, badge: str, value: bool,
+) -> tuple[bool, bool]:
+    """Установить бейдж. Возвращает (success, was_changed).
+
+    success=False если юзер не найден или badge неизвестен.
+    was_changed=False если значение уже было такое (no-op).
+    """
+    if badge not in BADGE_FIELDS:
+        return False, False
+    user = await get_user(session, tg_id)
+    if user is None:
+        return False, False
+    field = BADGE_FIELDS[badge]
+    current = getattr(user, field)
+    if current == value:
+        return True, False
+    setattr(user, field, value)
+    await session.commit()
+    return True, True

@@ -95,6 +95,11 @@ class User(Base):
     )
     delete_count: Mapped[int] = mapped_column(Integer, default=0)
 
+    # v4: community badges (admin-assigned)
+    badge_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    badge_trusted: Mapped[bool] = mapped_column(Boolean, default=False)
+    badge_top: Mapped[bool] = mapped_column(Boolean, default=False)
+
     messages: Mapped[list["Message"]] = relationship(
         "Message", back_populates="user", cascade="all, delete-orphan"
     )

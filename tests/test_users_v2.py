@@ -192,6 +192,117 @@ async def test_list_banned(session) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Subscriptions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_grant_revoke_subscription(session) -> None:
+    await users.upsert_user(session, tg_id=300, username=None, full_name="X")
+    # Изначально нет
+    me = await users.get_user(session, 300)
+    assert await users.get_active_subscription(session, me.id) is None
+
+    sub = await users.grant_subscription(
+        session, tg_id=300, kind="pro", days=30, granted_by_tg_id=1,
+    )
+    assert sub is not None
+    assert sub.kind == "pro"
+    assert sub.is_active is True
+
+    active = await users.get_active_subscription(session, me.id)
+    assert active is not None
+    assert active.kind == "pro"
+
+    ok = await users.revoke_subscription(session, 300)
+    assert ok is True
+    assert await users.get_active_subscription(session, me.id) is None
+
+    # Повторный revoke — False
+    assert await users.revoke_subscription(session, 300) is False
+
+
+@pytest.mark.asyncio
+async def test_grant_subscription_extends_existing(session) -> None:
+    await users.upsert_user(session, tg_id=301, username=None, full_name="X")
+    s1 = await users.grant_subscription(
+        session, tg_id=301, kind="pro", days=30, granted_by_tg_id=1,
+    )
+    first_until = s1.expires_at
+    # Продлеваем на 15 дней
+    s2 = await users.grant_subscription(
+        session, tg_id=301, kind="pro", days=15, granted_by_tg_id=1,
+    )
+    # Это та же подписка — продлена
+    assert s2.id == s1.id
+    delta = (s2.expires_at - first_until).days
+    assert delta == 15
+
+
+@pytest.mark.asyncio
+async def test_grant_subscription_unknown_user(session) -> None:
+    sub = await users.grant_subscription(
+        session, tg_id=99999, kind="pro", days=30, granted_by_tg_id=1,
+    )
+    assert sub is None
+
+
+# ---------------------------------------------------------------------------
+# Community badges
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_set_user_badge_grant_revoke(session) -> None:
+    await users.upsert_user(session, tg_id=400, username=None, full_name="X")
+    # Grant
+    ok, changed = await users.set_user_badge(
+        session, tg_id=400, badge="trusted", value=True,
+    )
+    assert ok and changed
+    u = await users.get_user(session, 400)
+    assert u.badge_trusted is True
+    assert u.badge_verified is False
+
+    # Re-grant — no-op
+    ok, changed = await users.set_user_badge(
+        session, tg_id=400, badge="trusted", value=True,
+    )
+    assert ok and not changed
+
+    # Revoke
+    ok, changed = await users.set_user_badge(
+        session, tg_id=400, badge="trusted", value=False,
+    )
+    assert ok and changed
+    u = await users.get_user(session, 400)
+    assert u.badge_trusted is False
+
+
+@pytest.mark.asyncio
+async def test_set_user_badge_unknown(session) -> None:
+    await users.upsert_user(session, tg_id=401, username=None, full_name="X")
+    ok, changed = await users.set_user_badge(
+        session, tg_id=401, badge="unknown_badge", value=True,
+    )
+    assert not ok and not changed
+
+
+@pytest.mark.asyncio
+async def test_set_user_badge_unknown_user(session) -> None:
+    ok, changed = await users.set_user_badge(
+        session, tg_id=99999, badge="verified", value=True,
+    )
+    assert not ok and not changed
+
+
+def test_known_badges() -> None:
+    assert "verified" in users.KNOWN_BADGES
+    assert "trusted" in users.KNOWN_BADGES
+    assert "top" in users.KNOWN_BADGES
+
+
+# ---------------------------------------------------------------------------
 # /check gate — только coworker может смотреть профили
 # ---------------------------------------------------------------------------
 

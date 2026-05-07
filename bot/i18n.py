@@ -540,6 +540,80 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_join_group": "👥 Зайти в группу Co-Workers Bay Area",
         "btn_open_my_posts": "📋 Мои объявления",
         "btn_open_my_deals": "🤝 Мои сделки",
+
+        # --- Community badges ---
+        "badge_verified": " ✅ Verified",
+        "badge_trusted": " 💎 Trusted Pro",
+        "badge_top": " 🏆 Top Coworker",
+
+        # --- Подписки ---
+        "subscription_required_msg": (
+            "🔒 Эта функция доступна только подписчикам.\n\n"
+            "Pro $20/мес — безлимит публикаций, Verified-бейдж, приоритет в ленте.\n"
+            "Business $200/мес — всё Pro + pinned объявления, brand-summary в группе.\n\n"
+            "Чтобы оформить — напиши админу через /suggest."
+        ),
+        "my_subscription_active": (
+            "🟢 <b>Активная подписка</b>\n\n"
+            "План: <b>{kind}</b>\n"
+            "Действует до: <b>{until}</b> ({days_left} дн.)\n\n"
+            "Спасибо за поддержку сообщества!"
+        ),
+        "my_subscription_inactive": (
+            "📭 У тебя пока нет активной подписки.\n\n"
+            "<b>Скоро доступно:</b>\n"
+            "• Pro $20/мес — безлимит публикаций, Verified-бейдж, "
+            "приоритет в ленте\n"
+            "• Business $200/мес — всё Pro + pinned объявления\n\n"
+            "Чтобы оформить — напиши админу через /suggest."
+        ),
+
+        # --- Админ-команды подписки и бейджей ---
+        "admin_grant_usage": (
+            "Использование: <code>/grant &lt;tg_id&gt; &lt;дней&gt; "
+            "[pro|business]</code>\n"
+            "Пример: <code>/grant 125293998 30 pro</code>"
+        ),
+        "admin_grant_done": (
+            "✅ Подписка <b>{kind}</b> выдана tg_id=<code>{tg_id}</code> "
+            "до <b>{until}</b>."
+        ),
+        "admin_grant_user_not_found": (
+            "❌ Юзер с tg_id=<code>{tg_id}</code> не найден. "
+            "Сначала пусть он сделает /start."
+        ),
+        "admin_revoke_usage": "Использование: <code>/revoke &lt;tg_id&gt;</code>",
+        "admin_revoke_done": (
+            "✅ Подписка отозвана у tg_id=<code>{tg_id}</code>."
+        ),
+        "admin_revoke_no_active": (
+            "⚠️ У tg_id=<code>{tg_id}</code> нет активной подписки."
+        ),
+        "admin_grant_badge_usage": (
+            "Использование: <code>/grant_badge &lt;tg_id&gt; "
+            "&lt;verified|trusted|top&gt;</code>\n"
+            "Пример: <code>/grant_badge 125293998 trusted</code>"
+        ),
+        "admin_revoke_badge_usage": (
+            "Использование: <code>/revoke_badge &lt;tg_id&gt; "
+            "&lt;verified|trusted|top&gt;</code>"
+        ),
+        "admin_badge_unknown": (
+            "❌ Неизвестный бейдж <b>{badge}</b>. "
+            "Доступны: verified, trusted, top."
+        ),
+        "admin_badge_granted": (
+            "✅ Бейдж <b>{badge}</b> выдан tg_id=<code>{tg_id}</code>."
+        ),
+        "admin_badge_already": (
+            "⚠️ Бейдж <b>{badge}</b> уже выдан tg_id=<code>{tg_id}</code>."
+        ),
+        "admin_badge_revoked": (
+            "✅ Бейдж <b>{badge}</b> снят с tg_id=<code>{tg_id}</code>."
+        ),
+        "admin_badge_not_set": (
+            "⚠️ У tg_id=<code>{tg_id}</code> нет бейджа <b>{badge}</b>."
+        ),
         # Модерация — для админов
         "mod_new_listing": (
             "🆕 <b>Новое объявление #LST-{id}</b> на модерацию\n\n"
@@ -1120,6 +1194,32 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_join_group": "👥 Join Co-Workers Bay Area",
         "btn_open_my_posts": "📋 My listings",
         "btn_open_my_deals": "🤝 My deals",
+
+        # --- Community badges ---
+        "badge_verified": " ✅ Verified",
+        "badge_trusted": " 💎 Trusted Pro",
+        "badge_top": " 🏆 Top Coworker",
+
+        # --- Subscriptions ---
+        "subscription_required_msg": (
+            "🔒 This feature is for subscribers only.\n\n"
+            "Pro $20/mo — unlimited posts, Verified badge, priority feed.\n"
+            "Business $200/mo — all Pro + pinned listings, brand summary.\n\n"
+            "Contact admin via /suggest to subscribe."
+        ),
+        "my_subscription_active": (
+            "🟢 <b>Active subscription</b>\n\n"
+            "Plan: <b>{kind}</b>\n"
+            "Until: <b>{until}</b> ({days_left} days left)\n\n"
+            "Thanks for supporting the community!"
+        ),
+        "my_subscription_inactive": (
+            "📭 No active subscription.\n\n"
+            "<b>Coming soon:</b>\n"
+            "• Pro $20/mo — unlimited posts, Verified badge, priority feed\n"
+            "• Business $200/mo — all Pro + pinned listings\n\n"
+            "Contact admin via /suggest to subscribe."
+        ),
         "mod_new_listing": (
             "🆕 <b>New listing #LST-{id}</b> for moderation\n\n"
             "From: {author}\n\n"

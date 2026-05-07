@@ -39,6 +39,10 @@ _USER_COLUMNS: list[tuple[str, str, str]] = [
     ("users", "is_deleted", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("users", "deleted_at", "TIMESTAMP WITH TIME ZONE"),
     ("users", "delete_count", "INTEGER NOT NULL DEFAULT 0"),
+    # v4 community badges
+    ("users", "badge_verified", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("users", "badge_trusted", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("users", "badge_top", "BOOLEAN NOT NULL DEFAULT FALSE"),
 ]
 
 _TAG_COLUMNS: list[tuple[str, str, str]] = [

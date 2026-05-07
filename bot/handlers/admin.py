@@ -349,3 +349,138 @@ async def cmd_banned_list(message: Message) -> None:
         reason = b.reason or "—"
         lines.append(f"• <code>{b.tg_id}</code> · {when} · {reason}")
     await message.answer("\n".join(lines))
+
+
+# ---------------------------------------------------------------------------
+# Подписки: ручная выдача/отзыв админом
+# ---------------------------------------------------------------------------
+
+
+@router.message(Command("grant"))
+async def cmd_grant(message: Message, command: CommandObject) -> None:
+    """/grant <tg_id> <дней> [pro|business] — выдать подписку."""
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    args = (command.args or "").strip().split()
+    if len(args) < 2:
+        await message.answer(t("ru", "admin_grant_usage"))
+        return
+    try:
+        tg_id = int(args[0])
+        days = int(args[1])
+    except ValueError:
+        await message.answer(t("ru", "admin_grant_usage"))
+        return
+    kind = args[2].lower() if len(args) > 2 else "pro"
+    if kind not in ("pro", "business", "individual", "company"):
+        kind = "pro"
+    async with get_session() as session:
+        sub = await users.grant_subscription(
+            session, tg_id=tg_id, kind=kind, days=days,
+            granted_by_tg_id=message.from_user.id,
+        )
+    if sub is None:
+        await message.answer(t("ru", "admin_grant_user_not_found", tg_id=tg_id))
+        return
+    until = sub.expires_at.strftime("%Y-%m-%d")
+    await message.answer(
+        t("ru", "admin_grant_done", kind=kind, tg_id=tg_id, until=until)
+    )
+    log.info("Admin %s granted sub %s to tg_id=%s for %s days",
+             message.from_user.id, kind, tg_id, days)
+
+
+@router.message(Command("revoke"))
+async def cmd_revoke(message: Message, command: CommandObject) -> None:
+    """/revoke <tg_id> — отозвать активную подписку."""
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    arg = (command.args or "").strip()
+    try:
+        tg_id = int(arg)
+    except ValueError:
+        await message.answer(t("ru", "admin_revoke_usage"))
+        return
+    async with get_session() as session:
+        ok = await users.revoke_subscription(session, tg_id)
+    if not ok:
+        await message.answer(t("ru", "admin_revoke_no_active", tg_id=tg_id))
+        return
+    await message.answer(t("ru", "admin_revoke_done", tg_id=tg_id))
+    log.info("Admin %s revoked sub from tg_id=%s",
+             message.from_user.id, tg_id)
+
+
+# ---------------------------------------------------------------------------
+# Community badges (admin-assigned: verified / trusted / top)
+# ---------------------------------------------------------------------------
+
+
+@router.message(Command("grant_badge"))
+async def cmd_grant_badge(message: Message, command: CommandObject) -> None:
+    """/grant_badge <tg_id> <verified|trusted|top> — выдать бейдж."""
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    args = (command.args or "").strip().split()
+    if len(args) < 2:
+        await message.answer(t("ru", "admin_grant_badge_usage"))
+        return
+    try:
+        tg_id = int(args[0])
+    except ValueError:
+        await message.answer(t("ru", "admin_grant_badge_usage"))
+        return
+    badge = args[1].lower()
+    if badge not in users.KNOWN_BADGES:
+        await message.answer(t("ru", "admin_badge_unknown", badge=badge))
+        return
+    async with get_session() as session:
+        ok, changed = await users.set_user_badge(
+            session, tg_id=tg_id, badge=badge, value=True,
+        )
+    if not ok:
+        await message.answer(t("ru", "admin_grant_user_not_found", tg_id=tg_id))
+        return
+    if not changed:
+        await message.answer(t("ru", "admin_badge_already",
+                               badge=badge, tg_id=tg_id))
+        return
+    await message.answer(t("ru", "admin_badge_granted",
+                           badge=badge, tg_id=tg_id))
+    log.info("Admin %s granted badge=%s to tg_id=%s",
+             message.from_user.id, badge, tg_id)
+
+
+@router.message(Command("revoke_badge"))
+async def cmd_revoke_badge(message: Message, command: CommandObject) -> None:
+    """/revoke_badge <tg_id> <verified|trusted|top> — снять бейдж."""
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    args = (command.args or "").strip().split()
+    if len(args) < 2:
+        await message.answer(t("ru", "admin_revoke_badge_usage"))
+        return
+    try:
+        tg_id = int(args[0])
+    except ValueError:
+        await message.answer(t("ru", "admin_revoke_badge_usage"))
+        return
+    badge = args[1].lower()
+    if badge not in users.KNOWN_BADGES:
+        await message.answer(t("ru", "admin_badge_unknown", badge=badge))
+        return
+    async with get_session() as session:
+        ok, changed = await users.set_user_badge(
+            session, tg_id=tg_id, badge=badge, value=False,
+        )
+    if not ok:
+        await message.answer(t("ru", "admin_grant_user_not_found", tg_id=tg_id))
+        return
+    if not changed:
+        await message.answer(t("ru", "admin_badge_not_set",
+                               badge=badge, tg_id=tg_id))
+        return
+    await message.answer(t("ru", "admin_badge_revoked",
+                           badge=badge, tg_id=tg_id))
+    log.info("Admin %s revoked badge=%s from tg_id=%s",
+             message.from_user.id, badge, tg_id)
