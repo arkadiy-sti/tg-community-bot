@@ -10,6 +10,7 @@ from aiogram.filters import ChatMemberUpdatedFilter, IS_NOT_MEMBER, JOIN_TRANSIT
 from aiogram.types import (
     CallbackQuery,
     ChatMemberUpdated,
+    ChatPermissions,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
@@ -26,6 +27,24 @@ log = logging.getLogger(__name__)
 
 router = Router(name="welcome")
 
+# Роли, которым разрешено писать в группе
+_WRITE_ROLES = {"coworker", "customer"}
+
+
+def _restricted_perms() -> ChatPermissions:
+    """Запрет отправки сообщений."""
+    return ChatPermissions(can_send_messages=False)
+
+
+def _write_perms() -> ChatPermissions:
+    """Базовые права на отправку сообщений (текст, медиа, стикеры, опросы)."""
+    return ChatPermissions(
+        can_send_messages=True,
+        can_send_other_messages=True,
+        can_add_web_page_previews=True,
+        can_send_polls=True,
+    )
+
 
 @router.chat_member(ChatMemberUpdatedFilter(member_status_changed=JOIN_TRANSITION))
 async def on_user_joined(event: ChatMemberUpdated, bot: Bot) -> None:
@@ -39,7 +58,7 @@ async def on_user_joined(event: ChatMemberUpdated, bot: Bot) -> None:
     user_id = user.id
     name = user.full_name
 
-    # Сохраняем пользователя в БД
+    # Сохраняем пользователя в БД, проверяем статус регистрации
     async with get_session() as session:
         await users.upsert_user(
             session,
@@ -47,6 +66,24 @@ async def on_user_joined(event: ChatMemberUpdated, bot: Bot) -> None:
             username=user.username,
             full_name=name,
         )
+        u = await users.get_user(session, user_id)
+
+    is_registered = (
+        u is not None
+        and u.role in _WRITE_ROLES
+        and not (u.is_deleted or False)
+    )
+
+    # Незарегистрированных — сразу ограничиваем в отправке сообщений
+    if not is_registered:
+        try:
+            await bot.restrict_chat_member(
+                chat_id=chat_id,
+                user_id=user_id,
+                permissions=_restricted_perms(),
+            )
+        except TelegramBadRequest as ex:
+            log.warning("Не смог ограничить %s: %s", user_id, ex)
 
     # Отправляем капчу
     try:
@@ -133,6 +170,12 @@ async def on_captcha_click(callback: CallbackQuery, bot: Bot) -> None:
     community = t(lang, "community_name")
     name = callback.from_user.full_name or callback.from_user.first_name or "друг"
 
+    is_registered = (
+        u is not None
+        and u.role in _WRITE_ROLES
+        and not (u.is_deleted or False)
+    )
+
     # Кнопка «Открыть бота» — deep-link к нашему боту
     bot_url: str | None = None
     try:
@@ -142,19 +185,58 @@ async def on_captcha_click(callback: CallbackQuery, bot: Bot) -> None:
     except Exception as e:
         log.info("Could not fetch bot username for welcome button: %s", e)
 
-    kb = None
-    if bot_url:
-        kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text=t(lang, "btn_open_bot"), url=bot_url),
-        ]])
+    if is_registered:
+        # Уже зарегистрирован — снимаем ограничения
+        try:
+            await bot.restrict_chat_member(
+                chat_id=chat_id,
+                user_id=user_id,
+                permissions=_write_perms(),
+            )
+        except TelegramBadRequest as ex:
+            log.info("Не смог выдать права %s: %s", user_id, ex)
 
-    try:
-        await callback.message.edit_text(
-            t(lang, "captcha_passed", name=name, community=community),
-            reply_markup=kb,
-            disable_web_page_preview=True,
-        )
-    except TelegramBadRequest:
-        pass
+        kb = None
+        if bot_url:
+            kb = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text=t(lang, "btn_open_bot"), url=bot_url),
+            ]])
+        try:
+            await callback.message.edit_text(
+                t(lang, "captcha_passed", name=name, community=community),
+                reply_markup=kb,
+                disable_web_page_preview=True,
+            )
+        except TelegramBadRequest:
+            pass
+    else:
+        # Не зарегистрирован — остаётся restricted, показываем инструкцию
+        kb = None
+        if bot_url:
+            kb = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text=t(lang, "btn_open_bot"), url=bot_url),
+            ]])
+        try:
+            await callback.message.edit_text(
+                t(lang, "captcha_passed_restricted", name=name, community=community),
+                reply_markup=kb,
+                disable_web_page_preview=True,
+            )
+        except TelegramBadRequest:
+            pass
 
-    await callback.answer("Добро пожаловать!")
+        # DM: дублируем инструкцию в личку (если бот уже запущен у юзера)
+        if bot_url:
+            try:
+                await bot.send_message(
+                    user_id,
+                    t(lang, "captcha_passed_restricted", name=name, community=community),
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                        InlineKeyboardButton(text=t(lang, "btn_open_bot"), url=bot_url),
+                    ]]),
+                    disable_web_page_preview=True,
+                )
+            except Exception as ex:
+                log.info("Не смог отправить DM %s: %s", user_id, ex)
+
+    await callback.answer("Добро пожаловать!" if is_registered else "Зарегистрируйся через бота!")

@@ -45,7 +45,8 @@ TEXTS: dict[str, dict[str, str]] = {
             "<b>🛠 Что можно делать через бота</b>\n\n"
             "• зарегистрироваться как <b>Coworker</b> — с профилем, тегами, "
             "рейтингом и уведомлениями\n"
-            "• зайти как <b>Гость</b> — читать группу без профиля\n"
+            "• зарегистрироваться как <b>Заказчик</b> — читать группу, "
+            "создавать объявления на работу\n"
             "• размещать объявления о работе через /post\n"
             "• откликаться на объявления других участников\n"
             "• оставлять отзывы после сделок\n"
@@ -117,7 +118,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "заказчиков в Bay Area. Делимся опытом, находим работу, "
             "помогаем друг другу расти.\n\n"
             "<b>🛠 Что можно через бота</b> (в личке)\n"
-            "• /register — регистрация (Coworker или Гость)\n"
+            "• /register — регистрация (Coworker или Заказчик)\n"
             "• /post — разместить объявление о работе\n"
             "• /my_posts — мои объявления\n"
             "• /my_deals — мои сделки и отзывы\n"
@@ -131,6 +132,13 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "btn_open_bot": "🤖 Открыть бота",
         "captcha_failed": "Время вышло — кикнул из чата. Зайди снова и пройди проверку.",
+        "captcha_passed_restricted": (
+            "👋 Привет, {name}! Ты прошёл проверку и теперь в <b>{community}</b>.\n\n"
+            "🔒 <b>Чтобы писать в чате</b>, нужно зарегистрироваться — займёт 1 минуту.\n\n"
+            "• <b>Coworker</b> — исполнитель (хэндимен, контрактор)\n"
+            "• <b>Заказчик</b> — ищешь подрядчиков\n\n"
+            "👇 Нажми кнопку ниже и пройди регистрацию."
+        ),
 
         # --- Регистрация ---
         "register_choose_role": (
@@ -815,7 +823,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "Healthy communities are built on people like that.\n\n"
             "<b>🛠 What you can do via the bot</b>\n\n"
             "• register as <b>Coworker</b> — with profile, tags, rating, and alerts\n"
-            "• join as <b>Guest</b> — read the group without a profile\n"
+            "• register as <b>Customer</b> — read the group, post job listings\n"
             "• post jobs via /post\n"
             "• respond to others' listings\n"
             "• leave reviews after deals\n"
@@ -882,7 +890,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "and clients in the Bay Area. Share experience, find work, "
             "help each other grow.\n\n"
             "<b>🛠 What you can do via the bot</b> (in DM)\n"
-            "• /register — sign up (Coworker or Guest)\n"
+            "• /register — sign up (Coworker or Customer)\n"
             "• /post — post a job listing\n"
             "• /my_posts — my listings\n"
             "• /my_deals — my deals and reviews\n"
@@ -896,6 +904,13 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "btn_open_bot": "🤖 Open the bot",
         "captcha_failed": "Time's up — you've been kicked. Rejoin and try again.",
+        "captcha_passed_restricted": (
+            "👋 Hi, {name}! You passed the check and joined <b>{community}</b>.\n\n"
+            "🔒 <b>To write in the group</b>, register first — takes 1 minute.\n\n"
+            "• <b>Coworker</b> — service provider (handyman, contractor)\n"
+            "• <b>Customer</b> — looking for contractors\n\n"
+            "👇 Tap the button below to register."
+        ),
         "register_choose_role": (
             "Choose your role:\n\n"
             "🛠 <b>Coworker</b> — handyman, contractor, specialist. Fill profile, "

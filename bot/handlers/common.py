@@ -1,9 +1,12 @@
 """Команды /start /help /rules — работают в личке и группе."""
 from __future__ import annotations
 
+import os
+
 from aiogram import Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import (
+    FSInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
@@ -48,6 +51,11 @@ async def cmd_start(message: Message) -> None:
             url=COMMUNITY_INVITE_URL,
         )
     ]])
+    # Отправляем баннер-изображение перед текстом (если файл существует)
+    _banner = os.path.join(os.path.dirname(__file__), "..", "assets", "welcome.jpg")
+    _banner = os.path.normpath(_banner)
+    if os.path.isfile(_banner):
+        await message.answer_photo(FSInputFile(_banner))
     await message.answer(
         t(lang, "start_private", name=name, community=community,
           invite=COMMUNITY_INVITE_URL),

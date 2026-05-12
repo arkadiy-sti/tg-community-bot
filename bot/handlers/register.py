@@ -8,17 +8,20 @@ from __future__ import annotations
 
 import logging
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     CallbackQuery,
+    ChatPermissions,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
 )
 
+from bot.config import get_settings
 from bot.db.database import get_session
 from bot.i18n import COMMUNITY_INVITE_URL, normalize_lang, t
 from bot.services import phones as phones_svc
@@ -753,7 +756,7 @@ async def _go_to_consent_msg(message: Message, state: FSMContext, lang: str) -> 
 
 
 @router.callback_query(RegStates.consent, F.data.startswith("reg:consent:"))
-async def cb_consent(callback: CallbackQuery, state: FSMContext) -> None:
+async def cb_consent(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     if callback.data is None or callback.from_user is None:
         return
     action = callback.data.split(":")[2]
@@ -789,14 +792,14 @@ async def cb_consent(callback: CallbackQuery, state: FSMContext) -> None:
                 show_alert=True,
             )
             return
-        await _finalize_registration(callback, state, lang)
+        await _finalize_registration(callback, state, lang, bot=bot)
         return
 
     await callback.answer()
 
 
 async def _finalize_registration(
-    callback: CallbackQuery, state: FSMContext, lang: str
+    callback: CallbackQuery, state: FSMContext, lang: str, *, bot: Bot
 ) -> None:
     if callback.from_user is None:
         return
@@ -847,6 +850,27 @@ async def _finalize_registration(
         "Registered v2 tg_id=%s role=%s licensed=%s",
         callback.from_user.id, u.role, u.is_licensed_contractor,
     )
+
+    # Выдаём право писать в группе (если GROUP_CHAT_ID настроен)
+    settings = get_settings()
+    if settings.main_chat_id:
+        try:
+            await bot.restrict_chat_member(
+                chat_id=settings.main_chat_id,
+                user_id=callback.from_user.id,
+                permissions=ChatPermissions(
+                    can_send_messages=True,
+                    can_send_other_messages=True,
+                    can_add_web_page_previews=True,
+                    can_send_polls=True,
+                ),
+            )
+        except TelegramBadRequest as ex:
+            log.info(
+                "Не смог выдать права на запись tg_id=%s: %s",
+                callback.from_user.id, ex,
+            )
+
     if callback.message:
         kb = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(
