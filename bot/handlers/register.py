@@ -274,6 +274,19 @@ async def cmd_register(message: Message, state: FSMContext) -> None:
             return
         existing = await users.get_user(session, message.from_user.id)
     await state.clear()
+
+    # Если у юзера активный профиль (не удалён) — блокируем повторную регистрацию
+    if existing is not None and existing.role and not existing.is_deleted:
+        lang = normalize_lang(existing.language)
+        from bot.handlers.profile import _ROLE_LABELS
+        role_label = _ROLE_LABELS.get(lang, _ROLE_LABELS["ru"]).get(
+            existing.role, existing.role
+        )
+        await message.answer(
+            t(lang, "register_already_registered", role=role_label)
+        )
+        return
+
     await state.set_state(RegStates.language)
     # Если возвращающийся юзер (был soft-deleted) — мягкое приветствие
     if existing is not None and (existing.delete_count or 0) > 0:

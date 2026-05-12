@@ -268,8 +268,10 @@ TEXTS: dict[str, dict[str, str]] = {
             "Удачи в проектах! 🛠"
         ),
         "register_already_registered": (
-            "У тебя уже есть профиль. Если хочешь перезаписать — нажми «Перезаписать».\n"
-            "Для точечных правок используй /edit."
+            "✅ Ты уже зарегистрирован как <b>{role}</b>.\n\n"
+            "Повторная регистрация возможна только после удаления профиля.\n\n"
+            "Хочешь что-то изменить? → /edit\n"
+            "Удалить профиль и начать заново? → /delete_me"
         ),
         "register_overwrite": "🔄 Перезаписать",
         "register_keep": "Оставить как есть",
@@ -1024,8 +1026,10 @@ TEXTS: dict[str, dict[str, str]] = {
             "Good luck on your projects! 🛠"
         ),
         "register_already_registered": (
-            "You already have a profile. Tap «Overwrite» to start over.\n"
-            "For small edits use /edit."
+            "✅ You're already registered as <b>{role}</b>.\n\n"
+            "You can only re-register after deleting your profile.\n\n"
+            "Want to update something? → /edit\n"
+            "Delete profile and start over? → /delete_me"
         ),
         "register_overwrite": "🔄 Overwrite",
         "register_keep": "Keep as is",
