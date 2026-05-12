@@ -141,7 +141,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "получаешь отклики. Регистрация занимает одну минуту."
         ),
         "role_coworker": "🛠 Coworker (исполнитель)",
-        "role_customer": "🏠 Заказчик (нужна работа)",
+        "role_customer": "🏠 Заказчик (ищу исполнителя)",
         "role_guest": "👀 Гость",
         "role_handyman": "🔧 Исполнитель (handyman)",  # legacy
         "role_individual": "🏠 Заказчик (физлицо)",      # legacy
