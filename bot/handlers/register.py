@@ -285,8 +285,15 @@ async def cmd_register(message: Message, state: FSMContext) -> None:
         role_label = _ROLE_LABELS.get(lang, _ROLE_LABELS["ru"]).get(
             existing.role, existing.role
         )
+        kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text=t(lang, "btn_join_group"),
+                url=COMMUNITY_INVITE_URL,
+            )
+        ]])
         await message.answer(
-            t(lang, "register_already_registered", role=role_label)
+            t(lang, "register_already_registered", role=role_label),
+            reply_markup=kb,
         )
         return
 
