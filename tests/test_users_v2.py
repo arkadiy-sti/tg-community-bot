@@ -300,6 +300,8 @@ def test_known_badges() -> None:
     assert "verified" in users.KNOWN_BADGES
     assert "trusted" in users.KNOWN_BADGES
     assert "top" in users.KNOWN_BADGES
+    assert "svoyak" in users.KNOWN_BADGES
+    assert "znatok" in users.KNOWN_BADGES
 
 
 # ---------------------------------------------------------------------------

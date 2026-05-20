@@ -109,6 +109,10 @@ async def _build_card(
         licensed_badge += t(lang, "badge_trusted")
     if user.badge_top:
         licensed_badge += t(lang, "badge_top")
+    if user.badge_svoyak:
+        licensed_badge += t(lang, "badge_svoyak")
+    if user.badge_znatok:
+        licensed_badge += t(lang, "badge_znatok")
     # Re-registered бейдж — ТОЛЬКО для админа.
     if viewer_is_admin and (user.delete_count or 0) > 0:
         licensed_badge += t(lang, "delete_count_badge", n=user.delete_count)

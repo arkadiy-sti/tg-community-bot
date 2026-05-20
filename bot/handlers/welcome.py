@@ -12,14 +12,17 @@ from __future__ import annotations
 import logging
 
 from aiogram import Bot, Router
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.filters import ChatMemberUpdatedFilter, JOIN_TRANSITION
 from aiogram.types import (
     ChatMemberUpdated,
     ChatPermissions,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
 )
 
 from bot.db.database import get_session
+from bot.i18n import COMMUNITY_INVITE_URL, normalize_lang, t
 from bot.services import users
 
 log = logging.getLogger(__name__)
@@ -79,3 +82,37 @@ async def on_user_joined(event: ChatMemberUpdated, bot: Bot) -> None:
             )
         except TelegramBadRequest as ex:
             log.warning("Не смог ограничить %s: %s", user_id, ex)
+
+        # Пытаемся отправить DM с инструкцией по регистрации.
+        # Работает только если юзер уже открыл бота — иначе молча игнорируем.
+        try:
+            me = await bot.get_me()
+            lang = normalize_lang(user.language_code)
+            community = t(lang, "community_name")
+            bot_url = (
+                f"https://t.me/{me.username}?start=welcome"
+                if me.username else None
+            )
+            kb = None
+            if bot_url:
+                kb = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(
+                        text=t(lang, "btn_open_bot"),
+                        url=bot_url,
+                    )
+                ]])
+            await bot.send_message(
+                chat_id=user_id,
+                text=t(lang, "captcha_passed_restricted",
+                        name=user.first_name or user.full_name,
+                        community=community),
+                reply_markup=kb,
+                disable_web_page_preview=True,
+            )
+            log.info("Welcome DM sent to user_id=%s", user_id)
+        except TelegramForbiddenError:
+            log.info(
+                "Welcome DM skipped (бот не запущен): user_id=%s", user_id
+            )
+        except Exception as ex:
+            log.warning("Welcome DM failed user_id=%s: %s", user_id, ex)

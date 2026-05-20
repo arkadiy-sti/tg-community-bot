@@ -13,6 +13,9 @@ BADGE_FIELDS: dict[str, str] = {
     "verified": "badge_verified",
     "trusted": "badge_trusted",
     "top": "badge_top",
+    # v5: community-driven badges
+    "svoyak": "badge_svoyak",      # 🤝 Свояк — за приглашение участников
+    "znatok": "badge_znatok",      # 💡 Знаток — за делёжку опытом и активность
 }
 KNOWN_BADGES: tuple[str, ...] = tuple(BADGE_FIELDS.keys())
 

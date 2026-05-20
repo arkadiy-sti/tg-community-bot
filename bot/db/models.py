@@ -100,6 +100,11 @@ class User(Base):
     badge_trusted: Mapped[bool] = mapped_column(Boolean, default=False)
     badge_top: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # v5: community-driven badges (admin-assigned manually for now;
+    # автоматический счётчик приглашений / активности — отдельная задача)
+    badge_svoyak: Mapped[bool] = mapped_column(Boolean, default=False)
+    badge_znatok: Mapped[bool] = mapped_column(Boolean, default=False)
+
     messages: Mapped[list["Message"]] = relationship(
         "Message", back_populates="user", cascade="all, delete-orphan"
     )

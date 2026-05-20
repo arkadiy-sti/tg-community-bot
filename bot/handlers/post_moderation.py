@@ -87,10 +87,9 @@ async def _render_user_card(session, user: User, lang: str) -> str:
     except Exception as e:
         log.warning("Не удалось отрендерить карточку user_id=%s: %s",
                     user.id, e)
-        return (
-            f"<b>{user.display_name or user.full_name or '—'}</b>\n"
-            f"@{user.username}" if user.username else ""
-        )
+        name_line = f"<b>{user.display_name or user.full_name or '—'}</b>"
+        username_line = f"\n@{user.username}" if user.username else ""
+        return name_line + username_line
 
 
 def _contact_url_buttons(user: User) -> list[list[InlineKeyboardButton]]:

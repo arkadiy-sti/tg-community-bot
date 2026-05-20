@@ -594,6 +594,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "badge_verified": " ✅ Verified",
         "badge_trusted": " 💎 Trusted Pro",
         "badge_top": " 🏆 Top Coworker",
+        "badge_svoyak": " 🤝 Свояк",
+        "badge_znatok": " 💡 Знаток",
 
         # --- Подписки ---
         "subscription_required_msg": (
@@ -1296,6 +1298,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "badge_verified": " ✅ Verified",
         "badge_trusted": " 💎 Trusted Pro",
         "badge_top": " 🏆 Top Coworker",
+        "badge_svoyak": " 🤝 Connector",
+        "badge_znatok": " 💡 Expert",
 
         # --- Subscriptions ---
         "subscription_required_msg": (

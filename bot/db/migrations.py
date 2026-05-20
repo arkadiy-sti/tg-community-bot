@@ -43,6 +43,9 @@ _USER_COLUMNS: list[tuple[str, str, str]] = [
     ("users", "badge_verified", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("users", "badge_trusted", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("users", "badge_top", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    # v5 community-driven badges
+    ("users", "badge_svoyak", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("users", "badge_znatok", "BOOLEAN NOT NULL DEFAULT FALSE"),
 ]
 
 _TAG_COLUMNS: list[tuple[str, str, str]] = [
