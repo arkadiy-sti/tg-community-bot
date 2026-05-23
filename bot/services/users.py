@@ -340,16 +340,20 @@ async def list_banned(session: AsyncSession, limit: int = 50) -> list[BannedTgId
 
 
 async def get_ghost_stats(session: AsyncSession) -> dict:
-    """Статистика «призраков» — участников без роли coworker/customer."""
+    """Статистика «призраков» — участников без роли coworker/customer.
+
+    NULL NOT IN (...) в SQL возвращает NULL (не TRUE) — поэтому пользователей
+    с role=NULL нужно учитывать отдельно через is_(None).
+    """
+    from sqlalchemy import or_
     _WRITE_ROLES = ("coworker", "customer")
+    _is_ghost = or_(User.role.is_(None), User.role.not_in(_WRITE_ROLES))
     ghost_count = await session.scalar(
-        select(func.count()).select_from(User).where(
-            User.role.not_in(_WRITE_ROLES)
-        )
+        select(func.count()).select_from(User).where(_is_ghost)
     ) or 0
     deleted_count = await session.scalar(
         select(func.count()).select_from(User).where(
-            User.role.not_in(_WRITE_ROLES),
+            _is_ghost,
             User.is_deleted.is_(True),
         )
     ) or 0
