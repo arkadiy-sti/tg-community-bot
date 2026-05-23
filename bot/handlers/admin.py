@@ -484,3 +484,52 @@ async def cmd_revoke_badge(message: Message, command: CommandObject) -> None:
                            badge=badge, tg_id=tg_id))
     log.info("Admin %s revoked badge=%s from tg_id=%s",
              message.from_user.id, badge, tg_id)
+
+
+# ---------------------------------------------------------------------------
+# «Призраки» — участники без регистрации
+# ---------------------------------------------------------------------------
+
+
+@router.message(Command("ghost_stats"))
+async def cmd_ghost_stats(message: Message) -> None:
+    """/ghost_stats — сколько участников без роли coworker/customer."""
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    async with get_session() as session:
+        stats = await users.get_ghost_stats(session)
+    await message.answer(t("ru", "admin_ghost_stats", **stats))
+
+
+@router.message(Command("welcome_unreg"))
+async def cmd_welcome_unreg(message: Message, bot: Bot) -> None:
+    """/welcome_unreg — отправить в группу напоминание о регистрации для призраков."""
+    if not _is_admin(message.from_user.id if message.from_user else None):
+        return
+    settings = get_settings()
+    if not settings.main_chat_id:
+        await message.answer(t("ru", "admin_no_group_chat"))
+        return
+
+    async with get_session() as session:
+        stats = await users.get_ghost_stats(session)
+
+    me = await bot.get_me()
+    bot_username = me.username or ""
+
+    try:
+        await bot.send_message(
+            chat_id=settings.main_chat_id,
+            text=t("ru", "group_welcome_unreg_blast",
+                   bot_username=bot_username),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+        await message.answer(
+            t("ru", "admin_welcome_unreg_done", count=stats["active_count"])
+        )
+        log.info("Admin %s sent welcome_unreg blast to chat %s",
+                 message.from_user.id, settings.main_chat_id)
+    except Exception as ex:
+        await message.answer(f"❌ Ошибка при отправке в группу: {ex}")
+        log.warning("welcome_unreg blast failed: %s", ex)

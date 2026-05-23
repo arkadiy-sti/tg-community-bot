@@ -339,6 +339,28 @@ async def list_banned(session: AsyncSession, limit: int = 50) -> list[BannedTgId
     return list(rs.scalars().all())
 
 
+async def get_ghost_stats(session: AsyncSession) -> dict:
+    """Статистика «призраков» — участников без роли coworker/customer."""
+    _WRITE_ROLES = ("coworker", "customer")
+    ghost_count = await session.scalar(
+        select(func.count()).select_from(User).where(
+            User.role.not_in(_WRITE_ROLES)
+        )
+    ) or 0
+    deleted_count = await session.scalar(
+        select(func.count()).select_from(User).where(
+            User.role.not_in(_WRITE_ROLES),
+            User.is_deleted.is_(True),
+        )
+    ) or 0
+    active_count = ghost_count - deleted_count
+    return {
+        "ghost_count": ghost_count,
+        "deleted_count": deleted_count,
+        "active_count": active_count,
+    }
+
+
 async def list_users_for_broadcast(
     session: AsyncSession, segment: str = "all"
 ) -> list[int]:

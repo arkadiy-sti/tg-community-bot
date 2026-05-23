@@ -21,6 +21,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
 )
 
+from bot.config import get_settings
 from bot.db.database import get_session
 from bot.i18n import COMMUNITY_INVITE_URL, normalize_lang, t
 from bot.services import users
@@ -83,19 +84,45 @@ async def on_user_joined(event: ChatMemberUpdated, bot: Bot) -> None:
         except TelegramBadRequest as ex:
             log.warning("Не смог ограничить %s: %s", user_id, ex)
 
-        # Пытаемся отправить DM с инструкцией по регистрации.
-        # Работает только если юзер уже открыл бота — иначе молча игнорируем.
+        me = await bot.get_me()
+        lang = normalize_lang(user.language_code)
+        community = t(lang, "community_name")
+        bot_username = me.username or ""
+        bot_url = f"https://t.me/{bot_username}?start=welcome" if bot_username else None
+
+        # 1. Приветствие В ГРУППЕ — работает всегда, даже если юзер не открывал бота.
+        #    Используем HTML-mention по tg_id (работает без @username).
         try:
-            me = await bot.get_me()
-            lang = normalize_lang(user.language_code)
-            community = t(lang, "community_name")
-            bot_url = (
-                f"https://t.me/{me.username}?start=welcome"
-                if me.username else None
-            )
-            kb = None
+            kb_group = None
             if bot_url:
-                kb = InlineKeyboardMarkup(inline_keyboard=[[
+                kb_group = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(
+                        text=t(lang, "btn_open_bot"),
+                        url=bot_url,
+                    )
+                ]])
+            await bot.send_message(
+                chat_id=chat_id,
+                text=t(lang, "group_welcome_unreg",
+                        user_id=user_id,
+                        name=user.first_name or user.full_name,
+                        community=community,
+                        bot_username=bot_username),
+                reply_markup=kb_group,
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+            log.info("Group welcome sent for user_id=%s in chat_id=%s",
+                     user_id, chat_id)
+        except Exception as ex:
+            log.warning("Group welcome failed user_id=%s: %s", user_id, ex)
+
+        # 2. DM — дополнительно, только если юзер уже открывал бота.
+        #    Если нет — TelegramForbiddenError, молча пропускаем.
+        try:
+            kb_dm = None
+            if bot_url:
+                kb_dm = InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(
                         text=t(lang, "btn_open_bot"),
                         url=bot_url,
@@ -106,13 +133,11 @@ async def on_user_joined(event: ChatMemberUpdated, bot: Bot) -> None:
                 text=t(lang, "captcha_passed_restricted",
                         name=user.first_name or user.full_name,
                         community=community),
-                reply_markup=kb,
+                reply_markup=kb_dm,
                 disable_web_page_preview=True,
             )
             log.info("Welcome DM sent to user_id=%s", user_id)
         except TelegramForbiddenError:
-            log.info(
-                "Welcome DM skipped (бот не запущен): user_id=%s", user_id
-            )
+            log.info("Welcome DM skipped (бот не запущен): user_id=%s", user_id)
         except Exception as ex:
             log.warning("Welcome DM failed user_id=%s: %s", user_id, ex)
