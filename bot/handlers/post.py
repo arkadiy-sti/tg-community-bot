@@ -86,6 +86,7 @@ def _kb_tag_grid(
     show_done: bool = True,
     show_custom: bool = False,
     cb_prefix: str = "p:t",
+    extra_count: int = 0,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     line: list[InlineKeyboardButton] = []
@@ -109,7 +110,7 @@ def _kb_tag_grid(
         ))
     if show_done:
         bottom.append(InlineKeyboardButton(
-            text=t(lang, "post_done") + f" ({len(selected)})",
+            text=t(lang, "post_done") + f" ({len(selected) + extra_count})",
             callback_data=f"{cb_prefix}:done",
         ))
     bottom.append(InlineKeyboardButton(
@@ -298,15 +299,17 @@ async def _send_locations_step(message: Message, state: FSMContext, lang: str) -
     custom_loc = data.get("location_freetext")
     async with get_session() as session:
         loc_tags = await list_tags_by_category(session, "location")
+    extra = 1 if custom_loc else 0
     text = t(
         lang, "post_ask_locations",
-        limit=listings_svc.MAX_LOCATIONS, selected=len(selected),
+        limit=listings_svc.MAX_LOCATIONS, selected=len(selected) + extra,
     )
     if custom_loc:
         text += f"\n\n📍 Свой адрес: <b>{custom_loc}</b>"
     kb = _kb_tag_grid(
         loc_tags, lang, selected=selected,
         show_done=True, show_custom=True, cb_prefix="p:l",
+        extra_count=extra,
     )
     await state.set_state(PostStates.locations)
     await message.answer(text, reply_markup=kb)
@@ -735,10 +738,16 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     payload = callback.data.split(":", 2)[2]
+
+    # Отвечаем сразу для всех кроме "done" (там может быть show_alert)
+    if payload != "done":
+        await callback.answer()
+
     data = await state.get_data()
     lang = data.get("lang", "ru")
     selected: list[int] = list(data.get("location_ids", []))
     custom_loc = data.get("location_freetext")
+    extra = 1 if custom_loc else 0
 
     if payload == "done":
         if not selected and not custom_loc:
@@ -754,7 +763,6 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
         return
 
     if payload == "custom":
-        await callback.answer()
         await state.set_state(PostStates.location_custom_input)
         if callback.message:
             await callback.message.answer(t(lang, "post_ask_custom_location"))
@@ -763,7 +771,6 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
     try:
         tag_id = int(payload)
     except ValueError:
-        await callback.answer()
         return
 
     s = set(selected)
@@ -771,10 +778,8 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
         s.remove(tag_id)
     else:
         if len(s) >= listings_svc.MAX_LOCATIONS:
-            await callback.answer(t(lang, "post_need_locations"), show_alert=False)
             return
         s.add(tag_id)
-    await callback.answer()
     await state.update_data(location_ids=list(s))
 
     # Перерисовать клавиатуру
@@ -782,7 +787,7 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
         loc_tags = await list_tags_by_category(session, "location")
     new_text = t(
         lang, "post_ask_locations",
-        limit=listings_svc.MAX_LOCATIONS, selected=len(s),
+        limit=listings_svc.MAX_LOCATIONS, selected=len(s) + extra,
     )
     if custom_loc:
         new_text += f"\n\n📍 Свой адрес: <b>{custom_loc}</b>"
@@ -792,7 +797,7 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
                 new_text,
                 reply_markup=_kb_tag_grid(loc_tags, lang, selected=s,
                                            show_done=True, show_custom=True,
-                                           cb_prefix="p:l"),
+                                           cb_prefix="p:l", extra_count=extra),
             )
         except Exception:
             pass
@@ -822,6 +827,11 @@ async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
         return
     payload = callback.data.split(":", 2)[2]
+
+    # Отвечаем сразу для всех кроме "done" (там может быть show_alert)
+    if payload != "done":
+        await callback.answer()
+
     data = await state.get_data()
     lang = data.get("lang", "ru")
     selected = list(data.get("skill_ids", []))
@@ -848,13 +858,12 @@ async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
                 if u else 0
             )
         if used >= tags_svc.CUSTOM_TAG_LIMIT_PER_USER:
-            await callback.answer(
-                t(lang, "register_custom_tag_limit",
-                  limit=tags_svc.CUSTOM_TAG_LIMIT_PER_USER),
-                show_alert=True,
-            )
+            if callback.message:
+                await callback.message.answer(
+                    t(lang, "register_custom_tag_limit",
+                      limit=tags_svc.CUSTOM_TAG_LIMIT_PER_USER)
+                )
             return
-        await callback.answer()
         await state.set_state(PostStates.skill_custom_input)
         if callback.message:
             await callback.message.answer(t(lang, "register_ask_custom_tag"))
@@ -863,7 +872,6 @@ async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
     try:
         tag_id = int(payload)
     except ValueError:
-        await callback.answer()
         return
 
     s = set(selected)
@@ -871,10 +879,8 @@ async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
         s.remove(tag_id)
     else:
         if len(s) >= listings_svc.MAX_SKILL_TAGS:
-            await callback.answer()
             return
         s.add(tag_id)
-    await callback.answer()
     await state.update_data(skill_ids=list(s))
 
     async with get_session() as session:
@@ -1220,15 +1226,15 @@ async def step_photo(message: Message, state: FSMContext) -> None:
             n = len(photo_ids)
             kb_msg_id = data.get("photo_kb_msg_id")
             kb_chat_id = data.get("photo_kb_chat_id")
-            if kb_msg_id and kb_chat_id:
+            if kb_msg_id and kb_chat_id and message.bot:
                 try:
                     await message.bot.edit_message_reply_markup(
                         chat_id=kb_chat_id,
                         message_id=kb_msg_id,
                         reply_markup=_kb_photos(lang, n),
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.warning("step_photo album: edit failed (msg=%s): %s", kb_msg_id, e)
             return
         seen_groups.append(message.media_group_id)
         await state.update_data(seen_media_groups=seen_groups)
@@ -1244,7 +1250,7 @@ async def step_photo(message: Message, state: FSMContext) -> None:
     # Редактируем исходное сообщение с кнопками вместо отправки нового
     kb_msg_id = data.get("photo_kb_msg_id")
     kb_chat_id = data.get("photo_kb_chat_id")
-    if kb_msg_id and kb_chat_id:
+    if kb_msg_id and kb_chat_id and message.bot:
         try:
             await message.bot.edit_message_reply_markup(
                 chat_id=kb_chat_id,
@@ -1252,13 +1258,18 @@ async def step_photo(message: Message, state: FSMContext) -> None:
                 reply_markup=_kb_photos(lang, n),
             )
             return
-        except Exception:
-            pass
-    # Fallback: отправляем новое сообщение если редактирование не удалось
-    await message.answer(
+        except Exception as e:
+            log.warning("step_photo: edit_message_reply_markup failed (msg=%s): %s",
+                        kb_msg_id, e)
+    else:
+        log.warning("step_photo: no kb_msg_id=%s kb_chat_id=%s bot=%s",
+                    kb_msg_id, kb_chat_id, message.bot)
+    # Fallback: отправляем новое сообщение и запоминаем его ID для следующих правок
+    sent = await message.answer(
         t(lang, "post_photo_added", n=n, limit=listings_svc.MAX_PHOTOS),
         reply_markup=_kb_photos(lang, n),
     )
+    await state.update_data(photo_kb_msg_id=sent.message_id, photo_kb_chat_id=sent.chat.id)
 
 
 @router.callback_query(PostStates.photos, F.data == "p:ph:undo")

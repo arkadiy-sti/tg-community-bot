@@ -14,7 +14,7 @@ DB_HOST="localhost"
 DB_PORT="5433"
 DB_NAME="tgbot_dev"
 DB_USER="bot_user"
-DB_PASS="***REMOVED***"
+DB_PASS="bot_password_151284"
 BACKUP_DIR="/opt/backups/tg-community-bot"
 KEEP_DAYS=7
 # ─────────────────────────────────────────────────────────────────────────────
@@ -77,4 +77,4 @@ log "=== Бэкап завершён ==="
 #
 # Восстановление из бэкапа:
 #   gunzip -c /opt/backups/tg-community-bot/tgbot_dev_YYYY-MM-DD.sql.gz \
-#   | PGPASSWORD=***REMOVED*** psql -h localhost -p 5433 -U bot_user -d tgbot_dev
+#   | PGPASSWORD=bot_password_151284 psql -h localhost -p 5433 -U bot_user -d tgbot_dev
