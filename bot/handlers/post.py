@@ -392,12 +392,14 @@ async def _go_to_description(
 
 
 async def _go_to_photos(message: Message, state: FSMContext, lang: str) -> None:
-    await state.update_data(photo_ids=[])
+    await state.update_data(photo_ids=[], photo_kb_msg_id=None)
     await state.set_state(PostStates.photos)
-    await message.answer(
+    sent = await message.answer(
         t(lang, "post_ask_photos", limit=listings_svc.MAX_PHOTOS),
         reply_markup=_kb_photos(lang, 0),
     )
+    # Запоминаем message_id кнопочного сообщения чтобы редактировать его
+    await state.update_data(photo_kb_msg_id=sent.message_id, photo_kb_chat_id=sent.chat.id)
 
 
 async def _go_to_contact(
@@ -687,6 +689,7 @@ async def cmd_post(message: Message, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "p:cancel")
 async def cb_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     data = await state.get_data()
     lang = data.get("lang", "ru")
     await state.clear()
@@ -695,7 +698,6 @@ async def cb_cancel(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.message.edit_text(t(lang, "post_canceled"))
         except Exception:
             pass
-    await callback.answer()
 
 
 # ---------------------------------------------------------------------------
@@ -705,11 +707,11 @@ async def cb_cancel(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.kind, F.data.startswith("p:k:"))
 async def cb_kind(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.data is None:
         return
     kind = callback.data.split(":")[2]
     if kind not in ("offer", "seek"):
-        await callback.answer()
         return
     data = await state.get_data()
     lang = data.get("lang", "ru")
@@ -720,7 +722,6 @@ async def cb_kind(callback: CallbackQuery, state: FSMContext) -> None:
         except Exception:
             pass
         await _send_locations_step(callback.message, state, lang)
-    await callback.answer()
 
 
 # ---------------------------------------------------------------------------
@@ -731,6 +732,7 @@ async def cb_kind(callback: CallbackQuery, state: FSMContext) -> None:
 @router.callback_query(PostStates.locations, F.data.startswith("p:l:"))
 async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
     if callback.data is None:
+        await callback.answer()
         return
     payload = callback.data.split(":", 2)[2]
     data = await state.get_data()
@@ -742,20 +744,20 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
         if not selected and not custom_loc:
             await callback.answer(t(lang, "post_need_locations"), show_alert=True)
             return
+        await callback.answer()
         if callback.message:
             try:
                 await callback.message.edit_reply_markup()
             except Exception:
                 pass
             await _send_skills_step(callback.message, state, lang)
-        await callback.answer()
         return
 
     if payload == "custom":
+        await callback.answer()
         await state.set_state(PostStates.location_custom_input)
         if callback.message:
             await callback.message.answer(t(lang, "post_ask_custom_location"))
-        await callback.answer()
         return
 
     try:
@@ -769,11 +771,10 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
         s.remove(tag_id)
     else:
         if len(s) >= listings_svc.MAX_LOCATIONS:
-            await callback.answer(
-                t(lang, "post_need_locations"), show_alert=False,
-            )
+            await callback.answer(t(lang, "post_need_locations"), show_alert=False)
             return
         s.add(tag_id)
+    await callback.answer()
     await state.update_data(location_ids=list(s))
 
     # Перерисовать клавиатуру
@@ -795,7 +796,6 @@ async def cb_locations(callback: CallbackQuery, state: FSMContext) -> None:
             )
         except Exception:
             pass
-    await callback.answer()
 
 
 @router.message(PostStates.location_custom_input)
@@ -819,6 +819,7 @@ async def step_location_custom(message: Message, state: FSMContext) -> None:
 @router.callback_query(PostStates.skills, F.data.startswith("p:s:"))
 async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
     if callback.data is None or callback.from_user is None:
+        await callback.answer()
         return
     payload = callback.data.split(":", 2)[2]
     data = await state.get_data()
@@ -829,17 +830,16 @@ async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
         if not selected:
             await callback.answer(t(lang, "post_need_skills"), show_alert=True)
             return
+        await callback.answer()
         if callback.message:
             try:
                 await callback.message.edit_reply_markup()
             except Exception:
                 pass
             await _go_after_skills(callback.message, state, lang)
-        await callback.answer()
         return
 
     if payload == "custom":
-        # Свой вариант — спрашиваем ввод
         from bot.services import tags as tags_svc
         async with get_session() as session:
             u = await users.get_user(session, callback.from_user.id)
@@ -854,10 +854,10 @@ async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
                 show_alert=True,
             )
             return
+        await callback.answer()
         await state.set_state(PostStates.skill_custom_input)
         if callback.message:
             await callback.message.answer(t(lang, "register_ask_custom_tag"))
-        await callback.answer()
         return
 
     try:
@@ -874,6 +874,7 @@ async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.answer()
             return
         s.add(tag_id)
+    await callback.answer()
     await state.update_data(skill_ids=list(s))
 
     async with get_session() as session:
@@ -889,7 +890,6 @@ async def cb_skills(callback: CallbackQuery, state: FSMContext) -> None:
             )
         except Exception:
             pass
-    await callback.answer()
 
 
 @router.message(PostStates.skill_custom_input)
@@ -933,6 +933,7 @@ async def step_skill_custom(message: Message, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.num_people, F.data.startswith("p:n:"))
 async def cb_num_people(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.data is None:
         return
     n = int(callback.data.split(":")[2])
@@ -944,7 +945,6 @@ async def cb_num_people(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.edit_text(
             t(lang, "post_ask_helper_kind"), reply_markup=_kb_helper(lang)
         )
-    await callback.answer()
 
 
 # ---------------------------------------------------------------------------
@@ -954,11 +954,11 @@ async def cb_num_people(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.engagement, F.data.startswith("p:e:"))
 async def cb_engagement(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.data is None:
         return
     e = callback.data.split(":")[2]
     if e not in ("one_time", "part_time"):
-        await callback.answer()
         return
     data = await state.get_data()
     lang = data.get("lang", "ru")
@@ -969,7 +969,6 @@ async def cb_engagement(callback: CallbackQuery, state: FSMContext) -> None:
         except Exception:
             pass
         await _go_to_language(callback.message, state, lang)
-    await callback.answer()
 
 
 # ---------------------------------------------------------------------------
@@ -979,11 +978,11 @@ async def cb_engagement(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.helper_kind, F.data.startswith("p:hk:"))
 async def cb_helper(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.data is None:
         return
     hk = callback.data.split(":")[2]
     if hk not in ("pro", "helper", "any"):
-        await callback.answer()
         return
     data = await state.get_data()
     lang = data.get("lang", "ru")
@@ -994,7 +993,6 @@ async def cb_helper(callback: CallbackQuery, state: FSMContext) -> None:
         except Exception:
             pass
         await _go_to_language(callback.message, state, lang)
-    await callback.answer()
 
 
 # ---------------------------------------------------------------------------
@@ -1004,11 +1002,11 @@ async def cb_helper(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.language, F.data.startswith("p:lo:"))
 async def cb_language_offer(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.data is None:
         return
     code = callback.data.split(":")[2]
     if code not in ("none", "ru", "en"):
-        await callback.answer()
         return
     data = await state.get_data()
     lang = data.get("lang", "ru")
@@ -1019,12 +1017,12 @@ async def cb_language_offer(callback: CallbackQuery, state: FSMContext) -> None:
         except Exception:
             pass
         await _go_to_duration(callback.message, state, lang)
-    await callback.answer()
 
 
 @router.callback_query(PostStates.language, F.data.startswith("p:ls:"))
 async def cb_language_seek(callback: CallbackQuery, state: FSMContext) -> None:
     if callback.data is None:
+        await callback.answer()
         return
     payload = callback.data.split(":")[2]
     data = await state.get_data()
@@ -1035,13 +1033,13 @@ async def cb_language_seek(callback: CallbackQuery, state: FSMContext) -> None:
         if not selected:
             await callback.answer(t(lang, "post_need_languages"), show_alert=True)
             return
-        # Кодируем: ru / en / ru_en
         if "ru" in selected and "en" in selected:
             code = "ru_en"
         elif "ru" in selected:
             code = "ru"
         else:
             code = "en"
+        await callback.answer()
         await state.update_data(language_req=code)
         if callback.message:
             try:
@@ -1049,13 +1047,13 @@ async def cb_language_seek(callback: CallbackQuery, state: FSMContext) -> None:
             except Exception:
                 pass
             await _go_to_duration(callback.message, state, lang)
-        await callback.answer()
         return
 
     if payload not in ("ru", "en"):
         await callback.answer()
         return
 
+    await callback.answer()
     if payload in selected:
         selected.remove(payload)
     else:
@@ -1068,7 +1066,6 @@ async def cb_language_seek(callback: CallbackQuery, state: FSMContext) -> None:
             )
         except Exception:
             pass
-    await callback.answer()
 
 
 # ---------------------------------------------------------------------------
@@ -1078,12 +1075,11 @@ async def cb_language_seek(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.duration, F.data.startswith("p:dur:"))
 async def cb_duration(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.data is None:
         return
     code = callback.data.split(":")[2]
-    valid = {"hours", "day", "few_days", "week_plus", "longterm"}
-    if code not in valid:
-        await callback.answer()
+    if code not in {"hours", "day", "few_days", "week_plus", "longterm"}:
         return
     data = await state.get_data()
     lang = data.get("lang", "ru")
@@ -1094,7 +1090,6 @@ async def cb_duration(callback: CallbackQuery, state: FSMContext) -> None:
         except Exception:
             pass
         await _go_to_urgency(callback.message, state, lang)
-    await callback.answer()
 
 
 # ---------------------------------------------------------------------------
@@ -1104,12 +1099,11 @@ async def cb_duration(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.urgency, F.data.startswith("p:u:"))
 async def cb_urgency(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.data is None:
         return
     code = callback.data.split(":")[2]
-    valid = {"urgent", "this_week", "this_month", "flexible"}
-    if code not in valid:
-        await callback.answer()
+    if code not in {"urgent", "this_week", "this_month", "flexible"}:
         return
     data = await state.get_data()
     lang = data.get("lang", "ru")
@@ -1119,15 +1113,12 @@ async def cb_urgency(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.message.edit_reply_markup()
         except Exception:
             pass
-        # Customer: urgency → budget (optional) → photos
-        # Coworker: urgency → budget (optional) → description
         if data.get("post_role") == "customer":
             await state.set_state(PostStates.budget)
             await callback.message.answer(t(lang, "post_ask_budget"),
                                           reply_markup=_kb_budget(lang))
         else:
             await _go_to_budget_or_description(callback.message, state, lang)
-    await callback.answer()
 
 
 # ---------------------------------------------------------------------------
@@ -1137,12 +1128,11 @@ async def cb_urgency(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.budget, F.data.startswith("p:b:"))
 async def cb_budget(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.data is None:
         return
     code = callback.data.split(":")[2]
-    valid = {"under_500", "500_2k", "2k_10k", "over_10k", "discuss"}
-    if code not in valid:
-        await callback.answer()
+    if code not in {"under_500", "500_2k", "2k_10k", "over_10k", "discuss"}:
         return
     data = await state.get_data()
     lang = data.get("lang", "ru")
@@ -1152,16 +1142,15 @@ async def cb_budget(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.message.edit_reply_markup()
         except Exception:
             pass
-        # Customer: budget → photos; Coworker: budget → description
         if data.get("post_role") == "customer":
             await _go_to_photos(callback.message, state, lang)
         else:
             await _go_to_description(callback.message, state, lang)
-    await callback.answer()
 
 
 @router.callback_query(PostStates.budget, F.data == "p:skip")
 async def cb_budget_skip(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     data = await state.get_data()
     lang = data.get("lang", "ru")
     await state.update_data(budget=None)
@@ -1170,12 +1159,10 @@ async def cb_budget_skip(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.message.edit_reply_markup()
         except Exception:
             pass
-        # Customer: budget → photos; Coworker: budget → description
         if data.get("post_role") == "customer":
             await _go_to_photos(callback.message, state, lang)
         else:
             await _go_to_description(callback.message, state, lang)
-    await callback.answer()
 
 
 # ---------------------------------------------------------------------------
@@ -1217,15 +1204,57 @@ async def step_photo(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     lang = data.get("lang", "ru")
     photo_ids = list(data.get("photo_ids", []))
+
+    # Дедупликация: пропускаем повторные фото из того же альбома
+    if message.media_group_id:
+        seen_groups: list = list(data.get("seen_media_groups", []))
+        file_id = message.photo[-1].file_id
+        if file_id in photo_ids:
+            return  # уже добавлено (race condition при отправке альбома)
+        if message.media_group_id in seen_groups:
+            # Второй и последующие фото из альбома — просто добавляем в список
+            if len(photo_ids) < listings_svc.MAX_PHOTOS:
+                photo_ids.append(file_id)
+                await state.update_data(photo_ids=photo_ids)
+            # Обновляем клавиатуру
+            n = len(photo_ids)
+            kb_msg_id = data.get("photo_kb_msg_id")
+            kb_chat_id = data.get("photo_kb_chat_id")
+            if kb_msg_id and kb_chat_id:
+                try:
+                    await message.bot.edit_message_reply_markup(
+                        chat_id=kb_chat_id,
+                        message_id=kb_msg_id,
+                        reply_markup=_kb_photos(lang, n),
+                    )
+                except Exception:
+                    pass
+            return
+        seen_groups.append(message.media_group_id)
+        await state.update_data(seen_media_groups=seen_groups)
+
     if len(photo_ids) >= listings_svc.MAX_PHOTOS:
-        await message.answer(
-            t(lang, "post_photo_limit", limit=listings_svc.MAX_PHOTOS)
-        )
+        await message.answer(t(lang, "post_photo_limit", limit=listings_svc.MAX_PHOTOS))
         return
-    # Берём наибольший вариант (последний в списке photo)
+
     photo_ids.append(message.photo[-1].file_id)
     await state.update_data(photo_ids=photo_ids)
     n = len(photo_ids)
+
+    # Редактируем исходное сообщение с кнопками вместо отправки нового
+    kb_msg_id = data.get("photo_kb_msg_id")
+    kb_chat_id = data.get("photo_kb_chat_id")
+    if kb_msg_id and kb_chat_id:
+        try:
+            await message.bot.edit_message_reply_markup(
+                chat_id=kb_chat_id,
+                message_id=kb_msg_id,
+                reply_markup=_kb_photos(lang, n),
+            )
+            return
+        except Exception:
+            pass
+    # Fallback: отправляем новое сообщение если редактирование не удалось
     await message.answer(
         t(lang, "post_photo_added", n=n, limit=listings_svc.MAX_PHOTOS),
         reply_markup=_kb_photos(lang, n),
@@ -1244,23 +1273,19 @@ async def cb_photos_undo(callback: CallbackQuery, state: FSMContext) -> None:
     photo_ids.pop()
     await state.update_data(photo_ids=photo_ids)
     n = len(photo_ids)
+    await callback.answer()
     if callback.message:
         try:
-            await callback.message.answer(
-                t(lang, "post_photo_removed",
-                  n=n, limit=listings_svc.MAX_PHOTOS),
-                reply_markup=_kb_photos(lang, n),
+            await callback.message.edit_reply_markup(
+                reply_markup=_kb_photos(lang, n)
             )
         except Exception:
             pass
-    await callback.answer(
-        t(lang, "post_photo_removed", n=n, limit=listings_svc.MAX_PHOTOS),
-        show_alert=False,
-    )
 
 
 @router.callback_query(PostStates.photos, F.data == "p:ph:done")
 async def cb_photos_done(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.from_user is None:
         return
     data = await state.get_data()
@@ -1273,11 +1298,11 @@ async def cb_photos_done(callback: CallbackQuery, state: FSMContext) -> None:
         await _go_to_contact(
             callback.message, state, lang, tg_id=callback.from_user.id
         )
-    await callback.answer()
 
 
 @router.callback_query(PostStates.photos, F.data == "p:ph:skip")
 async def cb_photos_skip(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.from_user is None:
         return
     data = await state.get_data()
@@ -1291,7 +1316,6 @@ async def cb_photos_skip(callback: CallbackQuery, state: FSMContext) -> None:
         await _go_to_contact(
             callback.message, state, lang, tg_id=callback.from_user.id
         )
-    await callback.answer()
 
 
 # ---------------------------------------------------------------------------
@@ -1301,6 +1325,7 @@ async def cb_photos_skip(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.contact, F.data == "p:c:keep")
 async def cb_contact_keep(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     if callback.from_user is None:
         return
     data = await state.get_data()
@@ -1314,17 +1339,16 @@ async def cb_contact_keep(callback: CallbackQuery, state: FSMContext) -> None:
         await _go_to_preview(
             callback.message, state, lang, tg_id=callback.from_user.id
         )
-    await callback.answer()
 
 
 @router.callback_query(PostStates.contact, F.data == "p:c:other")
 async def cb_contact_other(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     data = await state.get_data()
     lang = data.get("lang", "ru")
     await state.set_state(PostStates.contact_other)
     if callback.message:
         await callback.message.answer(t(lang, "post_ask_contact_other"))
-    await callback.answer()
 
 
 @router.message(PostStates.contact_other)
@@ -1345,15 +1369,17 @@ async def step_contact_other(message: Message, state: FSMContext) -> None:
 
 @router.callback_query(PostStates.preview, F.data == "p:submit")
 async def cb_submit(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()  # сразу снимаем спиннер
     if callback.from_user is None:
         return
     data = await state.get_data()
     lang = data.get("lang", "ru")
+    await state.clear()  # очищаем до DB-операции чтобы повторный тап не создал дубль
     async with get_session() as session:
         u = await users.get_user(session, callback.from_user.id)
         if u is None:
-            await state.clear()
-            await callback.answer()
+            if callback.message:
+                await callback.message.answer("⚠️ Профиль не найден. Запусти /start.")
             return
         listing = await listings_svc.create_listing(
             session,
@@ -1373,7 +1399,6 @@ async def cb_submit(callback: CallbackQuery, state: FSMContext) -> None:
             location_freetext=data.get("location_freetext"),
             photo_file_ids=data.get("photo_ids", []),
         )
-    await state.clear()
     log.info(
         "Listing created: id=%s kind=%s by tg_id=%s",
         listing.id, listing.kind, callback.from_user.id,
@@ -1383,7 +1408,6 @@ async def cb_submit(callback: CallbackQuery, state: FSMContext) -> None:
             await callback.message.edit_text(t(lang, "post_sent"))
         except Exception:
             await callback.message.answer(t(lang, "post_sent"))
-    await callback.answer()
 
     # Уведомляем модераторов в DM. Делаем это после ответа автору,
     # чтобы UI не подвисал на ошибке отправки.

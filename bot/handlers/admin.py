@@ -130,15 +130,26 @@ async def cmd_mute(message: Message, bot: Bot, command: CommandObject) -> None:
 
 
 @router.message(Command("stats"))
-async def cmd_stats(message: Message) -> None:
+async def cmd_stats(message: Message, bot: Bot) -> None:
     if not _is_admin(message.from_user.id if message.from_user else None):
         await message.answer(texts.MSG_ONLY_ADMIN)
         return
     async with get_session() as session:
         stats = await users.get_stats(session)
-    await message.answer(
-        texts.STATS_TEMPLATE.format(community=texts.COMMUNITY_NAME, **stats)
-    )
+
+    # Реальное количество участников группы через Telegram API
+    settings = get_settings()
+    group_count: int | None = None
+    if settings.main_chat_id:
+        try:
+            group_count = await bot.get_chat_member_count(settings.main_chat_id)
+        except Exception as ex:
+            log.warning("get_chat_member_count failed: %s", ex)
+
+    text = texts.STATS_TEMPLATE.format(community=texts.COMMUNITY_NAME, **stats)
+    if group_count is not None:
+        text += f"👤 В группе (Telegram): {group_count}\n"
+    await message.answer(text)
 
 
 # ---------------------------------------------------------------------------

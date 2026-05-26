@@ -828,7 +828,7 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "stats_template": (
             "<b>Статистика {community}</b>\n\n"
-            "👥 Всего пользователей: {total}\n"
+            "📋 Зарегистрированных в боте: {total}\n"
             "🟢 Активных за 7 дней: {active_7d}\n"
             "🆕 Новых за 24 часа: {new_24h}\n"
             "🔨 Забанено: {banned}\n"
@@ -1416,7 +1416,7 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "stats_template": (
             "<b>{community} stats</b>\n\n"
-            "👥 Total users: {total}\n"
+            "📋 Registered in bot: {total}\n"
             "🟢 Active 7d: {active_7d}\n"
             "🆕 New 24h: {new_24h}\n"
             "🔨 Banned: {banned}\n"
