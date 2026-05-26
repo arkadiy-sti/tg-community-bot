@@ -5,14 +5,14 @@
 # Установка: см. README внизу файла.
 #
 # Структура файлов:
-#   /opt/tg-community-bot/backups/tgbot_prod_YYYY-MM-DD.sql.gz
+#   /opt/tg-community-bot/backups/tgbot_dev_YYYY-MM-DD.sql.gz
 
 set -euo pipefail
 
 # ── Настройки ────────────────────────────────────────────────────────────────
 DB_HOST="localhost"
 DB_PORT="5433"
-DB_NAME="tgbot_prod"
+DB_NAME="tgbot_dev"
 DB_USER="bot_user"
 DB_PASS="***REMOVED***"
 BACKUP_DIR="/opt/backups/tg-community-bot"
@@ -21,11 +21,11 @@ KEEP_DAYS=7
 
 DATE=$(date +%Y-%m-%d)
 TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
-BACKUP_FILE="${BACKUP_DIR}/tgbot_prod_${DATE}.sql.gz"
+BACKUP_FILE="${BACKUP_DIR}/tgbot_dev_${DATE}.sql.gz"
 LOG_FILE="${BACKUP_DIR}/backup.log"
 
 # Структура файлов:
-#   /opt/backups/tg-community-bot/tgbot_prod_YYYY-MM-DD.sql.gz
+#   /opt/backups/tg-community-bot/tgbot_dev_YYYY-MM-DD.sql.gz
 #   /opt/backups/tg-community-bot/backup.log
 
 mkdir -p "$BACKUP_DIR"
@@ -54,7 +54,7 @@ else
 fi
 
 # Удаляем бэкапы старше KEEP_DAYS дней
-DELETED=$(find "$BACKUP_DIR" -name "tgbot_prod_*.sql.gz" -mtime +"$KEEP_DAYS" -print)
+DELETED=$(find "$BACKUP_DIR" -name "tgbot_dev_*.sql.gz" -mtime +"$KEEP_DAYS" -print)
 if [ -n "$DELETED" ]; then
     echo "$DELETED" | xargs rm -f
     log "Удалено старых бэкапов: $(echo "$DELETED" | wc -l)"
@@ -62,7 +62,7 @@ fi
 
 # Показываем что хранится
 log "Текущие бэкапы:"
-ls -lh "${BACKUP_DIR}"/tgbot_prod_*.sql.gz 2>/dev/null | awk '{print "  " $5, $9}' | tee -a "$LOG_FILE"
+ls -lh "${BACKUP_DIR}"/tgbot_dev_*.sql.gz 2>/dev/null | awk '{print "  " $5, $9}' | tee -a "$LOG_FILE"
 
 log "=== Бэкап завершён ==="
 
@@ -76,5 +76,5 @@ log "=== Бэкап завершён ==="
 # Список бэкапов: ls -lh /opt/backups/tg-community-bot/
 #
 # Восстановление из бэкапа:
-#   gunzip -c /opt/backups/tg-community-bot/tgbot_prod_YYYY-MM-DD.sql.gz \
-#   | PGPASSWORD=***REMOVED*** psql -h localhost -p 5433 -U bot_user -d tgbot_prod
+#   gunzip -c /opt/backups/tg-community-bot/tgbot_dev_YYYY-MM-DD.sql.gz \
+#   | PGPASSWORD=***REMOVED*** psql -h localhost -p 5433 -U bot_user -d tgbot_dev
